@@ -18,7 +18,7 @@ from telegram.ext import (
 
 from modules.base import BaseModule
 from modules.notion.module import notion_module
-from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_EN
+from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_EN, SKILL_CATEGORIES, CATEGORY_EMOJI
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ class LearningModule(BaseModule):
             CommandHandler("skills", self.skills_command),
             CommandHandler("recommend", self.recommend_command),
             CallbackQueryHandler(self.handle_skill_selection, pattern="^skill_"),
+            CallbackQueryHandler(self.handle_category_selection, pattern="^cat_"),
         ]
     
     def _calculate_content_progress(self, skill: Dict) -> Dict[str, float]:
@@ -281,6 +282,13 @@ class LearningModule(BaseModule):
         # Use emoji that display well in Telegram
         return "🟩" * filled + "⬜" * (length - filled)
     
+    def _get_skill_category(self, skill_name: str) -> str:
+        """Determines skill category"""
+        for category, skills in SKILL_CATEGORIES.items():
+            if skill_name in skills:
+                return category
+        return "Other"
+    
     def _format_skill_progress(self, skill: Dict) -> str:
         """Formats progress for one skill - beautiful format"""
         lines = []
@@ -318,6 +326,12 @@ class LearningModule(BaseModule):
             lines.append(f"    {bar}\n")
         
         return "".join(lines)
+    
+    def _format_skill_compact(self, skill: Dict) -> str:
+        """Formats skill in compact view (one line)"""
+        progress = self._calculate_overall_progress(skill)
+        bar = self._progress_bar(progress, 100, 5)
+        return f"• {skill['name']}: {bar} {progress:.0f}%"
     
     async def today_command(
         self,
@@ -492,7 +506,7 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Command /progress - shows progress for all skills"""
+        """Command /progress - shows progress summary with category buttons"""
         # Auto-sync with Notion
         await notion_module.refresh_skills_cache()
         skills = notion_module.get_skills()
@@ -504,21 +518,159 @@ class LearningModule(BaseModule):
             )
             return
         
-        # Sort skills by progress (highest to lowest)
+        await self._show_progress_summary(update, skills)
+    
+    async def _show_progress_summary(
+        self,
+        update: Update,
+        skills: List[Dict],
+        edit_message: bool = False
+    ) -> None:
+        """Shows progress summary with category buttons"""
+        # Calculate average progress
+        avg_progress = sum(self._calculate_overall_progress(s) for s in skills) / len(skills)
+        
+        # Sort skills by progress
         sorted_skills = sorted(
             skills,
             key=lambda s: self._calculate_overall_progress(s),
             reverse=True
         )
         
-        text = f"📊 Skill Progress\n"
-        text += f"Active: {len(skills)}\n\n"
+        # Build summary text
+        text = f"📊 *Skill Progress*\n"
+        text += f"Active: {len(skills)} | Avg: {avg_progress:.0f}%\n\n"
+        
+        # Top 3 skills
+        text += "🏆 *Top 3:*\n"
+        for skill in sorted_skills[:3]:
+            progress = self._calculate_overall_progress(skill)
+            text += f"• {skill['name']} — {progress:.0f}%\n"
+        
+        # Need attention (bottom 3 with < 50%)
+        need_attention = [s for s in sorted_skills if self._calculate_overall_progress(s) < 50]
+        if need_attention:
+            text += f"\n⚠️ *Need attention:*\n"
+            for skill in need_attention[-3:]:
+                progress = self._calculate_overall_progress(skill)
+                text += f"• {skill['name']} — {progress:.0f}%\n"
+        
+        text += "\n_Select category for details:_"
+        
+        # Create category buttons
+        keyboard = []
+        
+        # Count skills per category
+        category_counts = {}
+        for skill in skills:
+            cat = self._get_skill_category(skill["name"])
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        # Add category buttons (2 per row)
+        row = []
+        for category in ["Communication", "Thinking", "Adaptability", "Leadership", "Creativity"]:
+            count = category_counts.get(category, 0)
+            if count > 0:
+                emoji = CATEGORY_EMOJI.get(category, "📁")
+                btn_text = f"{emoji} {category} ({count})"
+                row.append(InlineKeyboardButton(btn_text, callback_data=f"cat_{category}"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+        
+        if row:
+            keyboard.append(row)
+        
+        # Add "All" and "Other" buttons
+        other_count = category_counts.get("Other", 0)
+        bottom_row = [InlineKeyboardButton(f"📊 All ({len(skills)})", callback_data="cat_All")]
+        if other_count > 0:
+            bottom_row.append(InlineKeyboardButton(f"📁 Other ({other_count})", callback_data="cat_Other"))
+        keyboard.append(bottom_row)
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if edit_message and update.callback_query:
+            await update.callback_query.edit_message_text(
+                text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+    
+    async def handle_category_selection(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Handles category selection"""
+        query = update.callback_query
+        await query.answer()
+        
+        data = query.data
+        category = data.replace("cat_", "")
+        
+        if category == "back":
+            skills = notion_module.get_skills()
+            await self._show_progress_summary(update, skills, edit_message=True)
+            return
+        
+        skills = notion_module.get_skills()
+        
+        # Filter skills by category
+        if category == "All":
+            filtered_skills = skills
+            title = "📊 All Skills"
+        elif category == "Other":
+            filtered_skills = [s for s in skills if self._get_skill_category(s["name"]) == "Other"]
+            title = "📁 Other Skills"
+        else:
+            filtered_skills = [s for s in skills if self._get_skill_category(s["name"]) == category]
+            emoji = CATEGORY_EMOJI.get(category, "📁")
+            title = f"{emoji} {category}"
+        
+        if not filtered_skills:
+            await query.answer("No skills in this category", show_alert=True)
+            return
+        
+        # Sort by progress
+        sorted_skills = sorted(
+            filtered_skills,
+            key=lambda s: self._calculate_overall_progress(s),
+            reverse=True
+        )
+        
+        # Build text
+        text = f"*{title}*\n"
+        text += f"Skills: {len(filtered_skills)}\n\n"
         
         for skill in sorted_skills:
             text += self._format_skill_progress(skill)
             text += "\n"
         
-        await update.message.reply_text(text, parse_mode='Markdown')
+        # Back button
+        keyboard = [[InlineKeyboardButton("⬅️ Back to summary", callback_data="cat_back")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Telegram message limit is 4096 chars
+        if len(text) > 4000:
+            # Truncate and show compact view
+            text = f"*{title}*\n"
+            text += f"Skills: {len(filtered_skills)}\n\n"
+            for skill in sorted_skills:
+                text += self._format_skill_compact(skill) + "\n"
+            text += "\n_Use /skills for detailed view_"
+        
+        await query.edit_message_text(
+            text,
+            parse_mode='Markdown',
+            reply_markup=reply_markup
+        )
     
     def generate_evening_task_message(self, skills: List[Dict]) -> str:
         """Generates evening message with task (8:00 PM)"""

@@ -80,3 +80,41 @@ SQLITE_DB_PATH = DATA_DIR / "bot.db"
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = DATA_DIR / "bot.log"
+
+# Skill Categories for organized display
+SKILL_CATEGORIES = {
+    "Communication": [
+        "Active Listening", "Writing Clarity", "Storytelling", 
+        "Question Formulation", "Body Language Reading", "Deception Detection",
+        "Negotiation", "Public Speaking", "Persuasion", "Conflict Resolution"
+    ],
+    "Thinking": [
+        "Metacognition", "Mental Simulation der", "Research Skills",
+        "Curiosity Cultivation", "Observation", "Visualization",
+        "Reading Comprehension", "Numerical Literacy", "Financial Literacy",
+        "Digital Literacy", "Critical Thinking", "Problem Solving"
+    ],
+    "Adaptability": [
+        "Adaptability", "Behavioral Change", "Intuition Development",
+        "Stress Management", "Emotional Regulation", "Resilience",
+        "Time Management", "Decision Making", "Risk Assessment"
+    ],
+    "Leadership": [
+        "Leadership", "Team Building", "Delegation", "Motivation",
+        "Coaching", "Feedback", "Strategic Thinking", "Vision Setting"
+    ],
+    "Creativity": [
+        "Creativity", "Innovation", "Design Thinking", "Brainstorming",
+        "Lateral Thinking", "Pattern Recognition"
+    ]
+}
+
+# Category emoji
+CATEGORY_EMOJI = {
+    "Communication": "💬",
+    "Thinking": "🧠",
+    "Adaptability": "🔄",
+    "Leadership": "👑",
+    "Creativity": "💡",
+    "All": "📊"
+}
