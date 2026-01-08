@@ -255,16 +255,18 @@ class LearningModule(BaseModule):
         return [s for s in skills if not self._is_skill_completed(s)]
     
     def _progress_bar(self, current: float, maximum: float, length: int = 10) -> str:
-        """Генерирует прогресс-бар"""
+        """Генерирует красивый прогресс-бар с эмодзи"""
         if maximum <= 0:
-            return "░" * length
-        filled = int(min(current / maximum, 1.0) * length)
-        return "█" * filled + "░" * (length - filled)
+            return "⬜" * length
+        ratio = min(current / maximum, 1.0)
+        filled = int(ratio * length)
+        # Используем эмодзи которые хорошо отображаются в Telegram
+        return "🟩" * filled + "⬜" * (length - filled)
     
     def _format_skill_progress(self, skill: Dict) -> str:
-        """Форматирует прогресс по одному навыку с прогресс-барами"""
+        """Форматирует прогресс по одному навыку - красивый формат"""
         lines = []
-        lines.append(f"📚 **{skill['name']}**\n")
+        lines.append(f"📚 *{skill['name']}*\n")
         
         # Рассчитываем общий прогресс
         total_current = (
@@ -282,29 +284,34 @@ class LearningModule(BaseModule):
             MAX_VALUES["VC Lectures"]
         )
         overall_pct = (total_current / total_max * 100) if total_max > 0 else 0
-        lines.append(f"Общий прогресс: {overall_pct:.0f}%\n\n")
+        lines.append(f"Общий прогресс: *{overall_pct:.0f}%*\n\n")
         
-        # Прогресс-бары для каждого типа контента
+        # Находим отстающий тип контента
+        weakest, _ = self._find_weakest_content_type(skill)
+        
+        # Прогресс для каждого типа контента
         progress_items = [
-            ("Lectures", skill["lectures"], "📖 Лекции"),
-            ("Practice hours", skill["practice_hours"], "💪 Практика"),
-            ("Video's", skill["videos"], "🎬 Видео"),
-            ("Films ", skill["films"], "🎥 Фильмы"),
-            ("VC Lectures", skill["vc_lectures"], "💼 VC Лекции"),
+            ("Lectures", skill["lectures"], "📖", "Лекции"),
+            ("Practice hours", skill["practice_hours"], "💪", "Практика"),
+            ("Video's", skill["videos"], "🎬", "Видео"),
+            ("Films ", skill["films"], "🎥", "Фильмы"),
+            ("VC Lectures", skill["vc_lectures"], "🎤", "VC Лекции"),
         ]
         
-        for key, current, label in progress_items:
+        for key, current, emoji, label in progress_items:
             maximum = MAX_VALUES[key]
-            bar = self._progress_bar(current, maximum, 10)
+            bar = self._progress_bar(current, maximum, 8)
             
             # Отмечаем отстающий тип контента
-            weakest, _ = self._find_weakest_content_type(skill)
             marker = " ⚠️" if key == weakest else ""
             
             if key == "Practice hours":
-                lines.append(f"{bar} {label}: {current:.1f}/{maximum} ч{marker}\n")
+                value_str = f"{current:.1f}/{maximum}ч"
             else:
-                lines.append(f"{bar} {label}: {int(current)}/{maximum}{marker}\n")
+                value_str = f"{int(current)}/{maximum}"
+            
+            lines.append(f"{emoji} {label}: {value_str}{marker}\n")
+            lines.append(f"    {bar}\n")
         
         return "".join(lines)
     
