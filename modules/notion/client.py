@@ -215,7 +215,10 @@ class NotionClient:
             # Получаем числовые значения
             def get_number(prop_name: str) -> float:
                 prop = props.get(prop_name, {})
-                return prop.get("number") or 0.0
+                value = prop.get("number") or 0.0
+                if prop_name == "Video's":
+                    logger.info(f"Skill {skill_name}: Video's raw prop = {prop}, value = {value}")
+                return value
             
             return {
                 "id": page["id"],
