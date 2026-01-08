@@ -68,8 +68,8 @@ EVENING_TASK_TIME = "20:00"
 # Morning reminder (gratitude)
 MORNING_REMINDER_TIME = "09:00"
 
-# Evening reminder (summary + gratitude)
-EVENING_REMINDER_TIME = "21:00"
+# Evening reminder (gratitude) - 23:00 before sleep
+EVENING_REMINDER_TIME = "23:00"
 
 # Voice message settings
 VOICE_TRANSCRIPTION_METHOD = "openai"

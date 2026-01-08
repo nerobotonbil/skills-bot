@@ -1,5 +1,5 @@
 """
-Reminders module - morning and evening notifications
+Reminders module - morning and evening gratitude notifications
 """
 import logging
 from typing import Optional
@@ -23,9 +23,9 @@ class ReminderService:
     Reminder service.
     
     Schedule:
-    - 09:00 — morning reminder (gratitude)
+    - 09:00 — morning gratitude prompt (direct question)
     - 20:00 — evening task (smart recommendation based on progress)
-    - 21:00 — evening reminder (summary + gratitude)
+    - 23:00 — evening gratitude prompt (direct question)
     """
     
     def __init__(self):
@@ -41,10 +41,10 @@ class ReminderService:
         task_hour, task_minute = scheduler.parse_time(EVENING_TASK_TIME)
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
         
-        # Morning reminder (09:00)
+        # Morning gratitude (09:00)
         scheduler.add_daily_job(
             "morning_reminder",
-            self.send_morning_reminder,
+            self.send_morning_gratitude,
             hour=morning_hour,
             minute=morning_minute
         )
@@ -57,17 +57,17 @@ class ReminderService:
             minute=task_minute
         )
         
-        # Evening reminder (21:00) — summary + gratitude
+        # Evening gratitude (23:00)
         scheduler.add_daily_job(
             "evening_reminder",
-            self.send_evening_reminder,
+            self.send_evening_gratitude,
             hour=evening_hour,
             minute=evening_minute
         )
         
         logger.info(
-            f"Reminders scheduled: morning at {MORNING_REMINDER_TIME}, "
-            f"task at {EVENING_TASK_TIME}, evening at {EVENING_REMINDER_TIME}"
+            f"Reminders scheduled: morning gratitude at {MORNING_REMINDER_TIME}, "
+            f"task at {EVENING_TASK_TIME}, evening gratitude at {EVENING_REMINDER_TIME}"
         )
     
     def set_chat_id(self, chat_id: int) -> None:
@@ -75,18 +75,22 @@ class ReminderService:
         self._chat_id = chat_id
         logger.info(f"Reminder chat ID set to {chat_id}")
     
-    async def send_morning_reminder(self) -> None:
-        """Sends morning reminder (09:00)"""
+    async def send_morning_gratitude(self) -> None:
+        """
+        Sends morning gratitude prompt (09:00).
+        Directly asks for gratitude - user just replies.
+        """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send morning reminder: app or chat_id not set")
+            logger.warning("Cannot send morning gratitude: app or chat_id not set")
             return
         
         try:
-            # Update skills data
-            skills = await notion_module.refresh_skills_cache()
-            
-            # Generate message
-            message = learning_module.get_morning_message(skills)
+            message = (
+                "🌅 **Good morning!**\n\n"
+                "What are you grateful for this morning?\n"
+                "What good awaits you today?\n\n"
+                "_Just reply to this message_"
+            )
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -94,13 +98,13 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            # Wait for gratitude
+            # Set waiting state - next text message will be saved as gratitude
             gratitude_module.set_waiting_for_gratitude(self._chat_id, "morning")
             
-            logger.info("Morning reminder sent")
+            logger.info("Morning gratitude prompt sent")
             
         except Exception as e:
-            logger.error(f"Failed to send morning reminder: {e}")
+            logger.error(f"Failed to send morning gratitude: {e}")
     
     async def send_evening_task(self) -> None:
         """
@@ -129,15 +133,23 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Failed to send evening task: {e}")
     
-    async def send_evening_reminder(self) -> None:
-        """Sends evening reminder (21:00)"""
+    async def send_evening_gratitude(self) -> None:
+        """
+        Sends evening gratitude prompt (23:00).
+        Directly asks for gratitude - user just replies.
+        """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send evening reminder: app or chat_id not set")
+            logger.warning("Cannot send evening gratitude: app or chat_id not set")
             return
         
         try:
-            # Generate message with summary
-            message = learning_module.get_evening_message()
+            message = (
+                "🌙 **Good evening!**\n\n"
+                "Time to reflect on the day.\n"
+                "What are you grateful for today?\n"
+                "What good happened?\n\n"
+                "_Just reply to this message_"
+            )
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -145,13 +157,13 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            # Wait for gratitude
+            # Set waiting state - next text message will be saved as gratitude
             gratitude_module.set_waiting_for_gratitude(self._chat_id, "evening")
             
-            logger.info("Evening reminder sent")
+            logger.info("Evening gratitude prompt sent")
             
         except Exception as e:
-            logger.error(f"Failed to send evening reminder: {e}")
+            logger.error(f"Failed to send evening gratitude: {e}")
     
     async def send_custom_reminder(self, message: str) -> None:
         """Sends custom reminder"""
