@@ -244,11 +244,13 @@ class LearningModule(BaseModule):
             await update.message.reply_text("✅ На сегодня всё готово!")
             return
         
-        # Формируем сообщение
+        # Формируем сообщение с прогресс-баром
+        bar = self._progress_bar(task['current'], task['maximum'], 10)
+        
         text = f"🎯 **Рекомендация на сегодня**\n\n"
         text += f"Навык: **{task['skill_name']}**\n\n"
-        text += f"{task['emoji']} Посмотри **{task['content_name_ru']}**\n"
-        text += f"Прогресс: {task['current']:.0f}/{task['maximum']} ({task['progress_pct']:.0f}%)\n\n"
+        text += f"{task['emoji']} {task['content_name_ru']}:\n"
+        text += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
         text += f"_Этот тип контента отстаёт больше всего._\n\n"
         text += f"После выполнения обнови прогресс в Notion и нажми /sync"
         

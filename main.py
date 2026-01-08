@@ -32,6 +32,7 @@ from modules.learning.module import learning_module
 from modules.gratitude.module import gratitude_module
 from modules.voice.module import voice_module
 from modules.ai_assistant.module import ai_assistant_module
+from modules.ideas.module import ideas_module
 from modules.reminders import reminder_service
 
 # Настройка логирования
@@ -156,6 +157,9 @@ async def post_init(application: Application) -> None:
     # Связываем voice модуль с AI-ассистентом
     voice_module.set_ai_assistant(ai_assistant_module)
     
+    # Связываем AI-ассистент с модулем идей
+    ai_assistant_module.set_ideas_module(ideas_module)
+    
     # Настраиваем сервис напоминаний
     reminder_service.setup(application)
     
@@ -183,6 +187,7 @@ def main() -> None:
     module_manager.register_module(gratitude_module)
     module_manager.register_module(voice_module)
     module_manager.register_module(ai_assistant_module)  # AI-ассистент
+    module_manager.register_module(ideas_module)  # Модуль идей
     
     logger.info(f"Registered {len(module_manager)} modules")
     
