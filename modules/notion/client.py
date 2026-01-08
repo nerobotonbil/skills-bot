@@ -216,8 +216,8 @@ class NotionClient:
             def get_number(prop_name: str) -> float:
                 prop = props.get(prop_name, {})
                 value = prop.get("number") or 0.0
-                if prop_name == "Video's":
-                    logger.info(f"Skill {skill_name}: Video's raw prop = {prop}, value = {value}")
+                if prop_name == "Videos":
+                    logger.info(f"Skill {skill_name}: Videos raw prop = {prop}, value = {value}")
                 return value
             
             return {
@@ -225,7 +225,7 @@ class NotionClient:
                 "url": page["url"],
                 "name": skill_name,
                 "lectures": get_number("Lectures"),
-                "videos": get_number("Video's"),
+                "videos": get_number("Videos"),
                 "practice_hours": get_number("Practice hours"),
                 "films": get_number("Films "),
                 "vc_lectures": get_number("VC Lectures"),
@@ -246,7 +246,7 @@ class NotionClient:
         
         Args:
             page_id: ID страницы навыка
-            field: Поле для обновления (Lectures, Video's, Practice hours, etc.)
+            field: Поле для обновления (Lectures, Videos, Practice hours, etc.)
             value: Новое значение
         """
         properties = {
@@ -298,7 +298,7 @@ class NotionClient:
         for skill in skills:
             # Рассчитываем прогресс по каждому типу контента
             lectures_progress = skill["lectures"] / MAX_VALUES["Lectures"]
-            videos_progress = skill["videos"] / MAX_VALUES["Video's"]
+            videos_progress = skill["videos"] / MAX_VALUES["Videos"]
             practice_progress = skill["practice_hours"] / MAX_VALUES["Practice hours"]
             
             # Общий прогресс (среднее)

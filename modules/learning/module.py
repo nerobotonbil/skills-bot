@@ -111,7 +111,7 @@ class LearningModule(BaseModule):
         return {
             "Lectures": skill["lectures"] / MAX_VALUES["Lectures"] * 100,
             "Practice hours": skill["practice_hours"] / MAX_VALUES["Practice hours"] * 100,
-            "Video's": skill["videos"] / MAX_VALUES["Video's"] * 100,
+            "Videos": skill["videos"] / MAX_VALUES["Videos"] * 100,
             "Films ": skill["films"] / MAX_VALUES["Films "] * 100,
             "VC Lectures": skill["vc_lectures"] / MAX_VALUES["VC Lectures"] * 100,
         }
@@ -128,7 +128,7 @@ class LearningModule(BaseModule):
         total_max = (
             MAX_VALUES["Lectures"] + 
             MAX_VALUES["Practice hours"] + 
-            MAX_VALUES["Video's"] + 
+            MAX_VALUES["Videos"] + 
             MAX_VALUES["Films "] + 
             MAX_VALUES["VC Lectures"]
         )
@@ -153,7 +153,7 @@ class LearningModule(BaseModule):
         progress = self._calculate_content_progress(skill)
         
         # Порядок для последовательного изучения
-        sequence = ["Lectures", "Video's", "VC Lectures", "Films ", "Practice hours"]
+        sequence = ["Lectures", "Videos", "VC Lectures", "Films ", "Practice hours"]
         
         for content_type in sequence:
             if progress.get(content_type, 100) < 100:
@@ -187,7 +187,7 @@ class LearningModule(BaseModule):
         field_map = {
             "Lectures": skill["lectures"],
             "Practice hours": skill["practice_hours"],
-            "Video's": skill["videos"],
+            "Videos": skill["videos"],
             "Films ": skill["films"],
             "VC Lectures": skill["vc_lectures"],
         }
@@ -263,7 +263,7 @@ class LearningModule(BaseModule):
         return (
             skill["lectures"] >= MAX_VALUES["Lectures"] and
             skill["practice_hours"] >= MAX_VALUES["Practice hours"] and
-            skill["videos"] >= MAX_VALUES["Video's"] and
+            skill["videos"] >= MAX_VALUES["Videos"] and
             skill["films"] >= MAX_VALUES["Films "] and
             skill["vc_lectures"] >= MAX_VALUES["VC Lectures"]
         )
@@ -297,7 +297,7 @@ class LearningModule(BaseModule):
         progress_items = [
             ("Lectures", skill["lectures"], "📖", "Лекции"),
             ("Practice hours", skill["practice_hours"], "💪", "Практика"),
-            ("Video's", skill["videos"], "🎬", "Видео"),
+            ("Videos", skill["videos"], "🎬", "Видео"),
             ("Films ", skill["films"], "🎥", "Фильмы"),
             ("VC Lectures", skill["vc_lectures"], "🎤", "VC Лекции"),
         ]
