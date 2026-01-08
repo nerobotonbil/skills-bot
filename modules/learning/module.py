@@ -333,12 +333,55 @@ class LearningModule(BaseModule):
         bar = self._progress_bar(progress, 100, 5)
         return f"• {skill['name']}: {bar} {progress:.0f}%"
     
+    def _get_daily_tasks(self, skills: List[Dict], count: int = 3) -> List[Dict]:
+        """
+        Generates multiple daily tasks.
+        Prioritizes lagging content types across all skills.
+        """
+        tasks = []
+        
+        # Collect ALL incomplete content types from all skills
+        all_content = []
+        for skill in skills:
+            progress = self._calculate_content_progress(skill)
+            for content_type, pct in progress.items():
+                if pct < 100:
+                    field_map = {
+                        "Lectures": skill["lectures"],
+                        "Practice hours": skill["practice_hours"],
+                        "Videos": skill["videos"],
+                        "Films ": skill["films"],
+                        "VC Lectures": skill["vc_lectures"],
+                    }
+                    all_content.append({
+                        "skill_name": skill["name"],
+                        "content_type": content_type,
+                        "content_name_en": CONTENT_NAMES_EN[content_type],
+                        "emoji": CONTENT_EMOJI[content_type],
+                        "current": field_map[content_type],
+                        "maximum": MAX_VALUES[content_type],
+                        "progress_pct": pct,
+                    })
+        
+        # Sort by progress (lowest first = most lagging)
+        all_content.sort(key=lambda x: x["progress_pct"])
+        
+        # Take top N unique tasks (different skill+content combinations)
+        seen = set()
+        for item in all_content:
+            key = (item["skill_name"], item["content_type"])
+            if key not in seen and len(tasks) < count:
+                tasks.append(item)
+                seen.add(key)
+        
+        return tasks
+    
     async def today_command(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Command /today - shows today's recommendation"""
+        """Command /today - shows today's tasks (multiple)"""
         # Auto-sync with Notion
         await notion_module.refresh_skills_cache()
         skills = notion_module.get_skills()
@@ -361,27 +404,26 @@ class LearningModule(BaseModule):
             )
             return
         
-        task = self._generate_smart_task(incomplete)
+        # Get multiple daily tasks
+        tasks = self._get_daily_tasks(incomplete, count=5)
         
-        if not task:
+        if not tasks:
             await update.message.reply_text("✅ All done for today!")
             return
         
-        # Format message with progress bar
-        bar = self._progress_bar(task['current'], task['maximum'], 10)
+        # Format message with multiple tasks
+        text = "🎯 **Today's Tasks**\n\n"
         
-        # Determine recommendation type
-        if task.get('mode') == 'sequential':
-            reason = "_Next step in learning this skill._"
-        else:
-            reason = "_This content type is lagging the most._"
+        for i, task in enumerate(tasks, 1):
+            bar = self._progress_bar(task['current'], task['maximum'], 8)
+            text += f"**{i}. {task['skill_name']}**\n"
+            text += f"{task['emoji']} {task['content_name_en']}: {bar} {task['current']:.0f}/{task['maximum']}\n"
+            if task['progress_pct'] < 20:
+                text += "⚠️ _Needs attention!_\n"
+            text += "\n"
         
-        text = f"🎯 **Today's Recommendation**\n\n"
-        text += f"Skill: **{task['skill_name']}**\n\n"
-        text += f"{task['emoji']} {task['content_name_en']}:\n"
-        text += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
-        text += f"{reason}\n\n"
-        text += f"After completing, update progress in Notion and tap /sync"
+        text += "_Tasks sorted by priority (most lagging first)_\n\n"
+        text += "After completing, update progress in Notion and tap /sync"
         
         await update.message.reply_text(text, parse_mode='Markdown')
     

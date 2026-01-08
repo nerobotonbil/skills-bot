@@ -5,6 +5,7 @@ Processes text and voice messages, helps manage the bot
 import logging
 import os
 import json
+import re
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -14,6 +15,57 @@ from telegram.ext import MessageHandler, ContextTypes, BaseHandler, filters
 from modules.base import BaseModule
 
 logger = logging.getLogger(__name__)
+
+# Keywords that indicate user wants to save an idea
+IDEA_KEYWORDS = [
+    # English
+    "save idea", "save note", "save thought", "write down", "note this",
+    "remember this", "keep the idea", "need to save", "put in notes",
+    "i have an idea", "idea:", "note:", "write it down", "save this",
+    "add to notes", "record this", "jot down",
+    # Russian
+    "запиши", "сохрани", "идея:", "заметка:", "запомни",
+    "записать", "сохранить идею", "добавь в заметки"
+]
+
+
+def detect_idea_intent(text: str) -> bool:
+    """
+    Detects if user wants to save an idea.
+    Returns True if idea keywords found.
+    """
+    text_lower = text.lower()
+    for keyword in IDEA_KEYWORDS:
+        if keyword in text_lower:
+            return True
+    return False
+
+
+def extract_idea_text(text: str) -> str:
+    """
+    Extracts the actual idea from the message.
+    Removes trigger phrases and cleans up.
+    """
+    # Remove common prefixes
+    prefixes_to_remove = [
+        r"^\[voice message\]:?\s*",
+        r"^save idea[,:]?\s*",
+        r"^save note[,:]?\s*",
+        r"^write down[,:]?\s*",
+        r"^note this[,:]?\s*",
+        r"^remember this[,:]?\s*",
+        r"^i have an idea[,:]?\s*",
+        r"^idea[,:]?\s*",
+        r"^note[,:]?\s*",
+        r"^запиши[,:]?\s*",
+        r"^сохрани[,:]?\s*",
+    ]
+    
+    result = text
+    for pattern in prefixes_to_remove:
+        result = re.sub(pattern, "", result, flags=re.IGNORECASE)
+    
+    return result.strip()
 
 
 class AIAssistantModule(BaseModule):
@@ -33,67 +85,34 @@ class AIAssistantModule(BaseModule):
         self._ideas_module = None
         
         # System prompt for AI
-        self._system_prompt = """You are a personal AI assistant in a Telegram bot for learning and self-development.
+        self._system_prompt = """You are a helpful personal AI assistant in a Telegram bot for learning and self-development.
 
 Your capabilities:
 1. Help user track progress on skills
 2. Record gratitude entries in journal
 3. Answer questions about learning
 4. Motivate and support
-5. SAVE IDEAS to Notion - this is a very important feature!
+5. Have friendly conversations
 
 Bot context:
 - User is learning 50 skills, tracking progress in Notion
 - Content types: lectures, practice, videos, films, VC lectures
-- There are morning (9:00 AM) and evening (9:00 PM) reminders
+- There are morning (9:00 AM) and evening (11:00 PM) gratitude reminders
 - Timezone: Tbilisi (GMT+4)
 
-IMPORTANT - Saving ideas:
-When user asks to save an idea, note, thought, or says something like:
-- "save idea..."
-- "save note..."
-- "remember this..."
-- "idea:..."
-- "note:..."
-- "want to write down..."
-- "need to save..."
-- "save thought..."
-
-You MUST return JSON in format:
-{"action": "save_idea", "idea": "full text of the idea"}
-
-Rules for processing ideas - VERY IMPORTANT:
-1. DON'T shorten text too much! Keep ALL information and ALL details
-2. Only fix grammar and remove filler words (like, um, you know)
-3. If message contains multiple ideas - save ALL ideas
-4. Structure text for readability, but DON'T DELETE content
-5. Idea should be complete and understandable when read later
-
-Example:
-User: "save idea, I was thinking it would be cool to make an app that helps people find interesting places in the city like google maps but only for local secret spots and also you can add reviews from locals"
-Response: {"action": "save_idea", "idea": "App idea: helps people find interesting places in the city, like Google Maps, but only for local secret spots. Additional: add reviews from local residents."}
-
-Example 2 (multiple ideas):
-User: "save note - want to improve communication system with people, think about what software to make for this, and also idea about landing penguins on Mars"
-Response: {"action": "save_idea", "idea": "1. Improve communication system with people - think about what software can be developed for this. 2. Idea about landing penguins on Mars (think through the concept)."}
-
-Main rule: BETTER TO SAVE MORE INFORMATION than lose important details!
-
 Bot commands (you can suggest):
-- /today - today's goal
+- /today - today's learning tasks
 - /progress - skills progress
 - /gratitude - record gratitude
 - /sync - sync with Notion
 
 Communication style:
-- Friendly but not pushy
+- Friendly and supportive
 - Brief and to the point
 - Use emojis moderately
 - Respond in English
 
-If user says something related to gratitude - suggest recording via /gratitude.
-If asking about progress - suggest /progress.
-If wants to save an idea - MUST return JSON with action: save_idea."""
+NOTE: Ideas are handled automatically by the system. Just be helpful and conversational."""
 
         # Initialize client immediately
         self._init_client()
@@ -133,57 +152,46 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
         if not self._client:
             self._init_client()
     
-    async def _process_ai_response(self, response: str, update: Update) -> str:
+    async def _save_idea_directly(self, idea_text: str, update: Update) -> str:
         """
-        Processes AI response and executes actions if needed.
-        Returns text to send to user.
+        Saves idea directly to Notion without AI processing.
+        Returns response message.
         """
-        # Check if response contains JSON with action
-        try:
-            # Try to find JSON in response
-            if '{"action"' in response:
-                # Extract JSON
-                start = response.find('{"action"')
-                end = response.find('}', start) + 1
-                json_str = response[start:end]
-                
-                data = json.loads(json_str)
-                
-                if data.get("action") == "save_idea" and data.get("idea"):
-                    idea_text = data["idea"]
-                    
-                    # Save idea to Notion
-                    if self._ideas_module:
-                        result = await self._ideas_module.save_idea(
-                            idea_text,
-                            user_id=update.effective_user.id
-                        )
-                        
-                        if result["success"]:
-                            return f"✅ Idea saved to Notion!\n\n📝 {idea_text}"
-                        else:
-                            return f"❌ Failed to save: {result['message']}\n\nIdea: {idea_text}"
-                    else:
-                        return f"❌ Ideas module not connected.\n\nIdea: {idea_text}"
-        except json.JSONDecodeError:
-            pass
-        except Exception as e:
-            logger.error(f"Error processing AI action: {e}")
+        if not self._ideas_module:
+            return f"❌ Ideas module not connected.\n\nIdea: {idea_text}"
         
-        # If no action - return response as is
-        # Remove JSON from response if present
-        if '{"action"' in response:
-            response = response[:response.find('{"action"')].strip()
+        # Clean up the idea text
+        clean_idea = extract_idea_text(idea_text)
         
-        return response if response else "✅ Done!"
+        if not clean_idea:
+            return "❌ Could not extract idea from message. Please try again."
+        
+        result = await self._ideas_module.save_idea(
+            clean_idea,
+            user_id=update.effective_user.id
+        )
+        
+        if result["success"]:
+            return f"✅ Idea saved to Notion!\n\n📝 {clean_idea}"
+        else:
+            return f"❌ Failed to save: {result['message']}\n\nIdea: {clean_idea}"
 
     async def handle_text_message(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Handles text message through AI"""
-        # Try to initialize if not initialized yet
+        """Handles text message - checks for ideas first, then AI"""
+        user_message = update.message.text
+        
+        # FIRST: Check if this is an idea to save
+        if detect_idea_intent(user_message):
+            logger.info(f"Idea detected in text message: {user_message[:50]}...")
+            response = await self._save_idea_directly(user_message, update)
+            await update.message.reply_text(response)
+            return
+        
+        # Otherwise, process with AI
         if not self._client:
             self._init_client()
         
@@ -194,7 +202,6 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
             return
         
         user_id = update.effective_user.id
-        user_message = update.message.text
         
         # Get or create conversation history
         if user_id not in self._conversation_history:
@@ -221,14 +228,11 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
             response = await self._get_ai_response(history)
             
             if response:
-                # Process response (possibly with action)
-                final_response = await self._process_ai_response(response, update)
-                
                 # Add response to history
-                history.append({"role": "assistant", "content": final_response})
+                history.append({"role": "assistant", "content": response})
                 
                 # Send response
-                await update.message.reply_text(final_response)
+                await update.message.reply_text(response)
             else:
                 await update.message.reply_text(
                     "🤔 Couldn't get a response. Try again."
@@ -249,8 +253,19 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
         """
         Processes transcribed text from voice message.
         Called from voice module.
+        FIRST checks for ideas, then processes with AI.
         """
-        # Try to initialize if not initialized yet
+        # FIRST: Check if this is an idea to save
+        if detect_idea_intent(transcribed_text):
+            logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
+            response = await self._save_idea_directly(transcribed_text, update)
+            await update.message.reply_text(
+                f"🎤 *Recognized:*\n_{transcribed_text}_\n\n{response}",
+                parse_mode="Markdown"
+            )
+            return
+        
+        # Otherwise, process with AI
         if not self._client:
             self._init_client()
         
@@ -269,9 +284,8 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
         
         history = self._conversation_history[user_id]
         
-        # Add context that this is a voice message
-        voice_context = f"[Voice message]: {transcribed_text}"
-        history.append({"role": "user", "content": voice_context})
+        # Add message to history (without [Voice message] prefix to avoid confusion)
+        history.append({"role": "user", "content": transcribed_text})
         
         # Limit history
         if len(history) > 20:
@@ -287,15 +301,12 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
             response = await self._get_ai_response(history)
             
             if response:
-                # Process response (possibly with action)
-                final_response = await self._process_ai_response(response, update)
-                
-                history.append({"role": "assistant", "content": final_response})
+                history.append({"role": "assistant", "content": response})
                 
                 # Show recognized text and AI response
                 await update.message.reply_text(
                     f"🎤 *Recognized:*\n_{transcribed_text}_\n\n"
-                    f"🤖 *Response:*\n{final_response}",
+                    f"🤖 *Response:*\n{response}",
                     parse_mode="Markdown"
                 )
             else:
@@ -318,7 +329,7 @@ If wants to save an idea - MUST return JSON with action: save_idea."""
             ] + history
             
             response = self._client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1-mini",
                 messages=messages,
                 max_tokens=500,
                 temperature=0.7

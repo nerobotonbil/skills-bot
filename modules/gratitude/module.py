@@ -248,22 +248,32 @@ class GratitudeModule(BaseModule):
         """Command /review - review gratitude entries from Notion"""
         entries = await self._get_recent_entries()
         
-        if not entries:
+        # Filter out empty entries
+        valid_entries = [e for e in entries if e.get('text')]
+        
+        if not valid_entries:
             await update.message.reply_text(
-                "📔 Journal is empty.\n"
-                "Use /gratitude to make your first entry!"
+                "📔 **Gratitude Journal**\n\n"
+                "No entries yet.\n"
+                "Use /gratitude to make your first entry!\n\n"
+                "_Make sure Integration2 is connected to the Gratitude Journal database in Notion._",
+                parse_mode='Markdown'
             )
             return
         
         message = "📔 **Recent Gratitude Entries**\n\n"
         
-        for entry in entries[:5]:
+        for entry in valid_entries[:5]:
             emoji = "🌅" if entry.get("time") == "Morning" else "🌙"
-            message += f"{emoji} **{entry['date']}**\n"
+            date_str = entry.get('date', 'No date')
+            message += f"{emoji} **{date_str}**\n"
             text = entry.get('text', '')
-            message += f"_{text[:100]}{'...' if len(text) > 100 else ''}_\n\n"
+            if text:
+                message += f"_{text[:100]}{'...' if len(text) > 100 else ''}_\n\n"
+            else:
+                message += "_(empty entry)_\n\n"
         
-        message += f"Total entries: {len(entries)}"
+        message += f"Total entries: {len(valid_entries)}"
         
         await update.message.reply_text(message, parse_mode='Markdown')
     
