@@ -72,6 +72,47 @@ class TaskScheduler:
         )
         logger.info(f"Daily job '{job_id}' scheduled at {hour:02d}:{minute:02d}")
     
+    def add_weekly_job(
+        self,
+        job_id: str,
+        callback: Callable,
+        day_of_week: int,
+        hour: int,
+        minute: int = 0,
+        **kwargs
+    ) -> None:
+        """
+        Adds a weekly job.
+        
+        Args:
+            job_id: Unique job identifier
+            callback: Async function to execute
+            day_of_week: Day of week (0=Monday, 4=Friday, 6=Sunday)
+            hour: Hour to execute (0-23)
+            minute: Minute to execute (0-59)
+            **kwargs: Additional arguments for callback
+        """
+        trigger = CronTrigger(
+            day_of_week=day_of_week, 
+            hour=hour, 
+            minute=minute, 
+            timezone=self.timezone
+        )
+        
+        existing = self.scheduler.get_job(job_id)
+        if existing:
+            self.scheduler.remove_job(job_id)
+        
+        self.scheduler.add_job(
+            callback,
+            trigger=trigger,
+            id=job_id,
+            kwargs=kwargs,
+            replace_existing=True
+        )
+        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        logger.info(f"Weekly job '{job_id}' scheduled for {days[day_of_week]} at {hour:02d}:{minute:02d}")
+    
     def add_interval_job(
         self,
         job_id: str,
