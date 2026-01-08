@@ -1,0 +1,17 @@
+# Telegram Bot
+python-telegram-bot[job-queue]==21.0
+
+# HTTP клиент для Notion API
+httpx==0.27.0
+
+# Планировщик задач
+APScheduler==3.10.4
+
+# Часовые пояса
+pytz==2024.1
+
+# OpenAI для транскрипции голоса (опционально)
+openai>=1.0.0
+
+# Для работы с аудио файлами
+pydub==0.25.1
