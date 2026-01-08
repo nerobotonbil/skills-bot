@@ -2,6 +2,8 @@
 Модуль напоминаний - утренняя/вечерняя благодарность, недельный обзор, защита серии
 """
 import logging
+import json
+import os
 from typing import Optional
 from telegram.ext import Application
 
@@ -23,6 +25,9 @@ FRIDAY_REVIEW_TIME = "19:00"
 # Время напоминания о серии (днём, до вечерней задачи)
 STREAK_REMINDER_TIME = "18:00"
 
+# Файл для сохранения chat_id
+CHAT_ID_FILE = "/tmp/bot_chat_id.json"
+
 
 class ReminderService:
     """
@@ -38,7 +43,30 @@ class ReminderService:
     
     def __init__(self):
         self._app: Optional[Application] = None
-        self._chat_id: Optional[int] = None
+        self._chat_id: Optional[int] = self._load_chat_id()
+    
+    def _load_chat_id(self) -> Optional[int]:
+        """Загружает chat_id из файла"""
+        try:
+            if os.path.exists(CHAT_ID_FILE):
+                with open(CHAT_ID_FILE, 'r') as f:
+                    data = json.load(f)
+                    chat_id = data.get("chat_id")
+                    if chat_id:
+                        logger.info(f"Chat ID загружен из файла: {chat_id}")
+                        return chat_id
+        except Exception as e:
+            logger.error(f"Ошибка загрузки chat_id: {e}")
+        return None
+    
+    def _save_chat_id(self, chat_id: int) -> None:
+        """Сохраняет chat_id в файл"""
+        try:
+            with open(CHAT_ID_FILE, 'w') as f:
+                json.dump({"chat_id": chat_id}, f)
+            logger.info(f"Chat ID сохранён в файл: {chat_id}")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения chat_id: {e}")
     
     def setup(self, app: Application) -> None:
         """Настраивает сервис напоминаний"""
@@ -67,7 +95,7 @@ class ReminderService:
             minute=streak_minute
         )
         
-        # Вечерняя задача (20:00) — блок глубокой практики
+        # Вечерняя задача (20:00)
         scheduler.add_daily_job(
             "evening_task",
             self.send_evening_task,
@@ -98,11 +126,17 @@ class ReminderService:
             f"задача в {EVENING_TASK_TIME}, вечер в {EVENING_REMINDER_TIME}, "
             f"недельный обзор в пятницу в {FRIDAY_REVIEW_TIME}"
         )
+        
+        if self._chat_id:
+            logger.info(f"Chat ID уже загружен: {self._chat_id}")
+        else:
+            logger.warning("Chat ID не установлен. Напоминания не будут отправляться до первого /start")
     
     def set_chat_id(self, chat_id: int) -> None:
-        """Устанавливает chat ID для отправки напоминаний"""
+        """Устанавливает и сохраняет chat ID для отправки напоминаний"""
         self._chat_id = chat_id
-        logger.info(f"Chat ID для напоминаний установлен: {chat_id}")
+        self._save_chat_id(chat_id)
+        logger.info(f"Chat ID для напоминаний установлен и сохранён: {chat_id}")
     
     async def send_morning_gratitude(self) -> None:
         """
