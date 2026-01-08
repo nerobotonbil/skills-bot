@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 class VoiceModule(BaseModule):
     """
     Модуль для обработки голосовых сообщений.
-    Конвертирует голос в текст с помощью OpenAI Whisper или локального инструмента.
+    Конвертирует голос в текст с помощью OpenAI Whisper.
+    После транскрибации передаёт текст AI-ассистенту для обработки.
     """
     
     def __init__(self):
@@ -30,8 +31,8 @@ class VoiceModule(BaseModule):
         self._voice_dir = DATA_DIR / "voice"
         self._voice_dir.mkdir(parents=True, exist_ok=True)
         
-        # Callback для обработки транскрибированного текста
-        self._transcription_callback = None
+        # Ссылка на AI-ассистент модуль (устанавливается при запуске)
+        self._ai_assistant = None
     
     def get_handlers(self) -> List[BaseHandler]:
         """Возвращает обработчики"""
@@ -39,12 +40,12 @@ class VoiceModule(BaseModule):
             MessageHandler(filters.VOICE, self.handle_voice_message),
         ]
     
-    def set_transcription_callback(self, callback):
+    def set_ai_assistant(self, ai_assistant):
         """
-        Устанавливает callback для обработки транскрибированного текста.
-        Callback должен принимать (update, context, text).
+        Устанавливает ссылку на AI-ассистент для обработки транскрибированного текста.
         """
-        self._transcription_callback = callback
+        self._ai_assistant = ai_assistant
+        logger.info("Voice module connected to AI Assistant")
     
     async def handle_voice_message(
         self,
@@ -82,9 +83,9 @@ class VoiceModule(BaseModule):
                 pass
             
             if text:
-                # Если есть callback, вызываем его
-                if self._transcription_callback:
-                    await self._transcription_callback(update, context, text)
+                # Если есть AI-ассистент, передаём ему текст для обработки
+                if self._ai_assistant:
+                    await self._ai_assistant.process_voice_text(update, context, text)
                 else:
                     # Иначе просто показываем текст
                     await update.message.reply_text(
@@ -104,18 +105,17 @@ class VoiceModule(BaseModule):
     async def transcribe_audio(self, file_path: str) -> Optional[str]:
         """
         Транскрибирует аудио файл в текст.
-        Использует OpenAI Whisper API или локальный инструмент.
+        Использует OpenAI Whisper API.
         """
-        # Сначала пробуем локальный инструмент manus-speech-to-text
-        text = await self._transcribe_local(file_path)
-        if text:
-            return text
-        
-        # Если не получилось, пробуем OpenAI API
         if OPENAI_API_KEY:
             text = await self._transcribe_openai(file_path)
             if text:
                 return text
+        
+        # Fallback на локальный инструмент
+        text = await self._transcribe_local(file_path)
+        if text:
+            return text
         
         return None
     
@@ -154,7 +154,7 @@ class VoiceModule(BaseModule):
         try:
             from openai import OpenAI
             
-            client = OpenAI()
+            client = OpenAI(api_key=OPENAI_API_KEY)
             
             with open(file_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
