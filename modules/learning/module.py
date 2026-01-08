@@ -16,7 +16,7 @@ from telegram.ext import (
     BaseHandler
 )
 
-from modules.base import BaseModule
+from modules.base import BaseModule, owner_only
 from modules.notion.module import notion_module
 from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_EN, SKILL_CATEGORIES, CATEGORY_EMOJI
 
@@ -296,18 +296,18 @@ class LearningModule(BaseModule):
         
         # Calculate overall progress
         overall_pct = self._calculate_overall_progress(skill)
-        lines.append(f"Overall progress: *{overall_pct:.0f}%*\n\n")
+        lines.append(f"Общий прогресс: *{overall_pct:.0f}%*\n\n")
         
         # Find lagging content type
         weakest, _ = self._find_weakest_content_type(skill)
         
         # Progress for each content type
         progress_items = [
-            ("Lectures", skill["lectures"], "📖", "Lectures"),
-            ("Practice hours", skill["practice_hours"], "💪", "Practice"),
-            ("Videos", skill["videos"], "🎬", "Videos"),
-            ("Films ", skill["films"], "🎥", "Films"),
-            ("VC Lectures", skill["vc_lectures"], "🎤", "VC Lectures"),
+            ("Lectures", skill["lectures"], "📖", "Лекции"),
+            ("Practice hours", skill["practice_hours"], "💪", "Практика"),
+            ("Videos", skill["videos"], "🎬", "Видео"),
+            ("Films ", skill["films"], "🎥", "Фильмы"),
+            ("VC Lectures", skill["vc_lectures"], "🎤", "VC лекции"),
         ]
         
         for key, current, emoji, label in progress_items:
@@ -376,6 +376,7 @@ class LearningModule(BaseModule):
         
         return tasks
     
+    @owner_only
     async def today_command(
         self,
         update: Update,
@@ -388,11 +389,11 @@ class LearningModule(BaseModule):
         
         if not skills:
             await update.message.reply_text(
-                "📚 You don't have any active skills yet.\n\n"
-                "To start:\n"
-                "1. Open Notion\n"
-                "2. Fill in the first progress bar for a skill\n"
-                "3. Use /sync to synchronize"
+                "📚 У тебя пока нет активных навыков.\n\n"
+                "Чтобы начать:\n"
+                "1. Открой Notion\n"
+                "2. Заполни первый прогресс-бар для навыка\n"
+                "3. Используй /sync для синхронизации"
             )
             return
         
@@ -400,7 +401,7 @@ class LearningModule(BaseModule):
         
         if not incomplete:
             await update.message.reply_text(
-                "🎉 Congratulations! All active skills are fully learned!"
+                "🎉 Поздравляю! Все активные навыки полностью изучены!"
             )
             return
         
@@ -408,25 +409,36 @@ class LearningModule(BaseModule):
         tasks = self._get_daily_tasks(incomplete, count=5)
         
         if not tasks:
-            await update.message.reply_text("✅ All done for today!")
+            await update.message.reply_text("✅ На сегодня всё готово!")
             return
         
-        # Format message with multiple tasks
-        text = "🎯 **Today's Tasks**\n\n"
+        # Форматируем сообщение с задачами
+        text = "🎯 **Задачи на сегодня**\n\n"
+        
+        # Русские названия типов контента
+        content_names_ru = {
+            "lecture": "лекция",
+            "practice (1 hour)": "практика (1 час)",
+            "video": "видео",
+            "film": "фильм",
+            "VC lecture": "VC лекция"
+        }
         
         for i, task in enumerate(tasks, 1):
             bar = self._progress_bar(task['current'], task['maximum'], 8)
+            content_name = content_names_ru.get(task['content_name_en'], task['content_name_en'])
             text += f"**{i}. {task['skill_name']}**\n"
-            text += f"{task['emoji']} {task['content_name_en']}: {bar} {task['current']:.0f}/{task['maximum']}\n"
+            text += f"{task['emoji']} {content_name}: {bar} {task['current']:.0f}/{task['maximum']}\n"
             if task['progress_pct'] < 20:
-                text += "⚠️ _Needs attention!_\n"
+                text += "⚠️ _Требует внимания!_\n"
             text += "\n"
         
-        text += "_Tasks sorted by priority (most lagging first)_\n\n"
-        text += "After completing, update progress in Notion and tap /sync"
+        text += "_Задачи отсортированы по приоритету (самые отстающие сначала)_\n\n"
+        text += "После выполнения обнови прогресс в Notion и нажми /sync"
         
         await update.message.reply_text(text, parse_mode='Markdown')
     
+    @owner_only
     async def recommend_command(
         self,
         update: Update,
@@ -435,6 +447,7 @@ class LearningModule(BaseModule):
         """Command /recommend - same as /today"""
         await self.today_command(update, context)
     
+    @owner_only
     async def skills_command(
         self,
         update: Update,
@@ -499,6 +512,7 @@ class LearningModule(BaseModule):
                 reply_markup=reply_markup
             )
     
+    @owner_only
     async def handle_skill_selection(
         self,
         update: Update,
@@ -525,16 +539,16 @@ class LearningModule(BaseModule):
                 break
         
         if not skill:
-            await query.edit_message_text("❌ Skill not found. Use /sync")
+            await query.edit_message_text("❌ Навык не найден. Используй /sync")
             return
         
         text = self._format_skill_progress(skill)
         
         rec = self._generate_recommendation(skill)
         if rec:
-            text += f"\n💡 **Recommendation:** watch {rec['content_name_en']}"
+            text += f"\n💡 **Рекомендация:** смотри {rec['content_name_en']}"
         
-        keyboard = [[InlineKeyboardButton("⬅️ Back to skills", callback_data="skill_back")]]
+        keyboard = [[InlineKeyboardButton("⬅️ Назад к навыкам", callback_data="skill_back")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
@@ -543,6 +557,7 @@ class LearningModule(BaseModule):
             reply_markup=reply_markup
         )
     
+    @owner_only
     async def progress_command(
         self,
         update: Update,
@@ -555,8 +570,8 @@ class LearningModule(BaseModule):
         
         if not skills:
             await update.message.reply_text(
-                "📚 You don't have any active skills yet.\n"
-                "Start learning a skill in Notion, then use /sync"
+                "📚 У тебя пока нет активных навыков.\n"
+                "Начни изучать навык в Notion, затем используй /sync"
             )
             return
         
@@ -645,6 +660,7 @@ class LearningModule(BaseModule):
                 reply_markup=reply_markup
             )
     
+    @owner_only
     async def handle_category_selection(
         self,
         update: Update,
@@ -667,17 +683,17 @@ class LearningModule(BaseModule):
         # Filter skills by category
         if category == "All":
             filtered_skills = skills
-            title = "📊 All Skills"
+            title = "📊 Все навыки"
         elif category == "Other":
             filtered_skills = [s for s in skills if self._get_skill_category(s["name"]) == "Other"]
-            title = "📁 Other Skills"
+            title = "📁 Другие навыки"
         else:
             filtered_skills = [s for s in skills if self._get_skill_category(s["name"]) == category]
             emoji = CATEGORY_EMOJI.get(category, "📁")
             title = f"{emoji} {category}"
         
         if not filtered_skills:
-            await query.answer("No skills in this category", show_alert=True)
+            await query.answer("Нет навыков в этой категории", show_alert=True)
             return
         
         # Sort by progress
@@ -689,24 +705,24 @@ class LearningModule(BaseModule):
         
         # Build text
         text = f"*{title}*\n"
-        text += f"Skills: {len(filtered_skills)}\n\n"
+        text += f"Навыков: {len(filtered_skills)}\n\n"
         
         for skill in sorted_skills:
             text += self._format_skill_progress(skill)
             text += "\n"
         
         # Back button
-        keyboard = [[InlineKeyboardButton("⬅️ Back to summary", callback_data="cat_back")]]
+        keyboard = [[InlineKeyboardButton("⬅️ Назад к сводке", callback_data="cat_back")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         # Telegram message limit is 4096 chars
         if len(text) > 4000:
             # Truncate and show compact view
             text = f"*{title}*\n"
-            text += f"Skills: {len(filtered_skills)}\n\n"
+            text += f"Навыков: {len(filtered_skills)}\n\n"
             for skill in sorted_skills:
                 text += self._format_skill_compact(skill) + "\n"
-            text += "\n_Use /skills for detailed view_"
+            text += "\n_Используй /skills для подробного просмотра_"
         
         await query.edit_message_text(
             text,
@@ -718,63 +734,63 @@ class LearningModule(BaseModule):
         """Generates evening message with task (8:00 PM)"""
         if not skills:
             return (
-                "🌆 **Good evening!**\n\n"
-                "You don't have any active skills yet.\n"
-                "Start learning something new in Notion!"
+                "🌆 **Добрый вечер!**\n\n"
+                "У тебя пока нет активных навыков.\n"
+                "Начни изучать что-то новое в Notion!"
             )
         
         incomplete = self._get_incomplete_skills(skills)
         
         if not incomplete:
             return (
-                "🌆 **Good evening!**\n\n"
-                "🎉 All active skills are learned!\n"
-                "Time to start a new skill."
+                "🌆 **Добрый вечер!**\n\n"
+                "🎉 Все активные навыки изучены!\n"
+                "Время начать новый навык."
             )
         
         task = self._generate_smart_task(incomplete)
         
         if not task:
-            return "🌆 **Good evening!**\n\n✅ All done for today!"
+            return "🌆 **Добрый вечер!**\n\n✅ На сегодня всё готово!"
         
         bar = self._progress_bar(task['current'], task['maximum'], 10)
         
         if task.get('mode') == 'sequential':
-            reason = "Next step in learning"
+            reason = "Следующий шаг в обучении"
         else:
-            reason = "This content type is lagging"
+            reason = "Этот тип контента отстаёт"
         
-        message = f"🌆 **Good evening!**\n\n"
-        message += f"🎯 Evening task:\n\n"
-        message += f"Skill: **{task['skill_name']}**\n"
+        message = f"🌆 **Добрый вечер!**\n\n"
+        message += f"🎯 Вечерняя задача:\n\n"
+        message += f"Навык: **{task['skill_name']}**\n"
         message += f"{task['emoji']} {task['content_name_en']}:\n"
         message += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
         message += f"_{reason}_\n\n"
-        message += f"After completing, update progress in Notion!"
+        message += f"После выполнения обнови прогресс в Notion!"
         
         return message
     
     def generate_morning_message(self) -> str:
         """Generates morning message (9:00 AM)"""
         return (
-            "🌅 **Good morning!**\n\n"
-            "New day - new opportunities for growth!\n\n"
-            "Use /today to get today's recommendation."
+            "🌅 **Доброе утро!**\n\n"
+            "Новый день — новые возможности для роста!\n\n"
+            "Используй /today для рекомендации на сегодня."
         )
     
     def generate_night_message(self, skills: List[Dict]) -> str:
         """Generates night message with summary (9:00 PM)"""
         if not skills:
             return (
-                "🌙 **Good night!**\n\n"
-                "Tomorrow start learning a new skill in Notion!"
+                "🌙 **Спокойной ночи!**\n\n"
+                "Завтра начни изучать новый навык в Notion!"
             )
         
         # Calculate overall progress
         total_progress = sum(self._calculate_overall_progress(s) for s in skills) / len(skills)
         
-        message = f"🌙 **Good night!**\n\n"
-        message += f"📊 Average skill progress: *{total_progress:.0f}%*\n\n"
+        message = f"🌙 **Спокойной ночи!**\n\n"
+        message += f"📊 Средний прогресс по навыкам: *{total_progress:.0f}%*\n\n"
         
         # Show top 3 skills
         sorted_skills = sorted(
@@ -783,12 +799,12 @@ class LearningModule(BaseModule):
             reverse=True
         )[:3]
         
-        message += "🏆 Top skills:\n"
+        message += "🏆 Топ навыков:\n"
         for i, skill in enumerate(sorted_skills, 1):
             progress = self._calculate_overall_progress(skill)
             message += f"{i}. {skill['name']} - {progress:.0f}%\n"
         
-        message += "\nRest well and recharge! 💪"
+        message += "\nОтдохни и восстанови силы! 💪"
         
         return message
 

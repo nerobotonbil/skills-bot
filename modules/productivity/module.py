@@ -29,6 +29,15 @@ from modules.base import BaseModule
 from modules.notion.module import notion_module
 from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_EN, SKILL_CATEGORIES, CATEGORY_EMOJI
 
+# Русские названия типов контента
+CONTENT_NAMES_RU = {
+    "Lectures": "лекция",
+    "Practice hours": "практика (1 час)",
+    "Videos": "видео",
+    "Films ": "фильм",
+    "VC Lectures": "VC лекция"
+}
+
 logger = logging.getLogger(__name__)
 
 # File for storing streak and productivity data
@@ -278,26 +287,25 @@ class ProductivityModule(BaseModule):
         if result["new_milestone"]:
             # Milestone celebration
             milestone_messages = {
-                7: "🎉 **AMAZING! 7-DAY STREAK!**\n\nYou're 3.6x more likely to master this skill now!",
-                14: "🔥 **TWO WEEKS STRONG!**\n\nYou're building real neural pathways!",
-                21: "⭐ **21 DAYS! HABIT FORMED!**\n\nThis is now part of who you are!",
-                30: "🏆 **ONE MONTH CHAMPION!**\n\nYou're in the top 5% of learners!",
-                50: "💎 **50 DAYS OF EXCELLENCE!**\n\nYou're becoming an expert!",
-                100: "👑 **100 DAYS! LEGENDARY!**\n\nYou've achieved what most only dream of!",
-                150: "🌟 **150 DAYS! UNSTOPPABLE!**\n\nYou're rewriting your brain!",
-                200: "🚀 **200 DAYS! TRANSCENDENT!**\n\nYou've mastered consistency itself!",
-                365: "🎊 **ONE YEAR! IMMORTAL STREAK!**\n\nYou are the 0.1%!"
+                7: "🎉 **НЕВЕРОЯТНО! 7-ДНЕВНАЯ СЕРИЯ!**\n\nТы в 3.6 раза ближе к мастерству!",
+                14: "🔥 **ДВЕ НЕДЕЛИ ПОДРЯД!**\n\nТы строишь настоящие нейронные связи!",
+                21: "⭐ **21 ДЕНЬ! ПРИВЫЧКА СФОРМИРОВАНА!**\n\nЭто теперь часть тебя!",
+                30: "🏆 **МЕСЯЦ! ЧЕМПИОН!**\n\nТы в топ-5% всех учеников!",
+                50: "💎 **50 ДНЕЙ СОВЕРШЕНСТВА!**\n\nТы становишься экспертом!",
+                100: "👑 **100 ДНЕЙ! ЛЕГЕНДА!**\n\nТы достиг того, о чём другие только мечтают!",
+                150: "🌟 **150 ДНЕЙ! НЕУДЕРЖИМ!**\n\nТы перепрограммируешь свой мозг!",
+                200: "🚀 **200 ДНЕЙ! ТРАНСЦЕНДЕНТНОСТЬ!**\n\nТы освоил саму последовательность!",
+                365: "🎊 **ГОД! БЕССМЕРТНАЯ СЕРИЯ!**\n\nТы в 0.1% лучших!"
             }
-            return milestone_messages.get(result["new_milestone"], f"🎉 {result['new_milestone']}-day milestone!")
+            return milestone_messages.get(result["new_milestone"], f"🎉 Веха {result['new_milestone']} дней!")
         
         if streak <= 3:
-            # Early streak - celebrate growth
-            growth_pct = ((streak - 1) / max(1, streak - 1)) * 100 if streak > 1 else 100
-            return f"🔥 **{streak}-day streak!**\n\nYou're building momentum! Keep going!"
+            # Ранняя серия - празднуем рост
+            return f"🔥 **{streak}-дневная серия!**\n\nТы набираешь обороты! Продолжай!"
         elif streak <= 10:
-            return f"🔥 **{streak}-day streak!**\n\nYou're on fire! Don't break the chain!"
+            return f"🔥 **{streak}-дневная серия!**\n\nТы в ударе! Не ломай цепочку!"
         else:
-            return f"🔥 **{streak}-day streak!**\n\nIncredible consistency! You're unstoppable!"
+            return f"🔥 **{streak}-дневная серия!**\n\nНевероятная последовательность! Ты неудержим!"
     
     def generate_loss_aversion_reminder(self) -> Optional[str]:
         """
@@ -582,9 +590,10 @@ class ProductivityModule(BaseModule):
                 emoji = CATEGORY_EMOJI.get(item["category"], "📚")
                 content_emoji = CONTENT_EMOJI.get(item["content_type"], "📖")
                 
+                content_name = CONTENT_NAMES_RU.get(item['content_type'], item['content_type'])
                 message += (
                     f"**{i}. {item['skill']['name']}** {emoji}\n"
-                    f"   {content_emoji} {CONTENT_NAMES_EN[item['content_type']]} — {item['duration_mins']} мин\n"
+                    f"   {content_emoji} {content_name} — {item['duration_mins']} мин\n"
                     f"   Прогресс: {item['progress']:.0f}%\n\n"
                 )
                 total_time += item["duration_mins"]
@@ -671,7 +680,7 @@ class ProductivityModule(BaseModule):
             "content_type": main_content,
             "duration_mins": 20,
             "focus": "deep",
-            "instruction": f"Глубокое погружение в {CONTENT_NAMES_EN[main_content]}"
+            "instruction": f"Глубокое погружение в {CONTENT_NAMES_RU.get(main_content, main_content)}"
         })
         
         # Segment 2: Related skill
@@ -684,7 +693,7 @@ class ProductivityModule(BaseModule):
                 "content_type": rel_content,
                 "duration_mins": 15,
                 "focus": "practice",
-                "instruction": f"Практика {CONTENT_NAMES_EN[rel_content]}"
+                "instruction": f"Практика: {CONTENT_NAMES_RU.get(rel_content, rel_content)}"
             })
         
         # Segment 3: Review
@@ -698,7 +707,7 @@ class ProductivityModule(BaseModule):
                 "content_type": rev_content,
                 "duration_mins": 10,
                 "focus": "review",
-                "instruction": f"Повторение {CONTENT_NAMES_EN[rev_content]}"
+                "instruction": f"Повторение: {CONTENT_NAMES_RU.get(rev_content, rev_content)}"
             })
         
         # Recalculate total duration

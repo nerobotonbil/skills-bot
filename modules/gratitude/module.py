@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 from openai import OpenAI
 
-from modules.base import BaseModule
+from modules.base import BaseModule, owner_only
 from config.settings import (
     NOTION_GRATITUDE_DATABASE_ID, 
     SKILL_CATEGORIES,
@@ -115,6 +115,7 @@ class GratitudeModule(BaseModule):
             ),
         ]
     
+    @owner_only
     async def gratitude_command(
         self,
         update: Update,
@@ -123,19 +124,20 @@ class GratitudeModule(BaseModule):
         """Command /gratitude - write gratitude entry"""
         keyboard = [
             [
-                InlineKeyboardButton("🌅 Morning", callback_data="gratitude_morning"),
-                InlineKeyboardButton("🌙 Evening", callback_data="gratitude_evening"),
+                InlineKeyboardButton("🌅 Утро", callback_data="gratitude_morning"),
+                InlineKeyboardButton("🌙 Вечер", callback_data="gratitude_evening"),
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "🙏 **Gratitude Journal**\n\n"
-            "Choose entry type:",
+            "🙏 **Дневник благодарности**\n\n"
+            "Выбери тип записи:",
             parse_mode='Markdown',
             reply_markup=reply_markup
         )
     
+    @owner_only
     async def handle_time_selection(
         self,
         update: Update,
@@ -152,15 +154,15 @@ class GratitudeModule(BaseModule):
         
         if time_of_day == "morning":
             prompt = (
-                "🌅 **Morning Gratitude**\n\n"
-                "What are you grateful for this morning?\n\n"
-                "_Type your message or send a voice note_"
+                "🌅 **Утренняя благодарность**\n\n"
+                "За что ты благодарен этим утром?\n\n"
+                "_Напиши сообщение или отправь голосовое_"
             )
         else:
             prompt = (
-                "🌙 **Evening Gratitude**\n\n"
-                "What are you grateful for today?\n\n"
-                "_Type your message or send a voice note_"
+                "🌙 **Вечерняя благодарность**\n\n"
+                "За что ты благодарен сегодня?\n\n"
+                "_Напиши сообщение или отправь голосовое_"
             )
         
         await query.edit_message_text(prompt, parse_mode='Markdown')
@@ -218,13 +220,13 @@ class GratitudeModule(BaseModule):
         saved_to_notion = await self._save_to_notion(entry)
         
         emoji = "🌅" if time_of_day == "morning" else "🌙"
-        response = f"{emoji} **Gratitude saved!**\n\n"
+        response = f"{emoji} **Благодарность сохранена!**\n\n"
         response += f"_{text}_\n\n"
         
         if saved_to_notion:
-            response += "✅ Synced to Notion"
+            response += "✅ Синхронизировано с Notion"
         else:
-            response += "⚠️ Couldn't sync to Notion"
+            response += "⚠️ Не удалось синхронизировать с Notion"
         
         await update.message.reply_text(response, parse_mode='Markdown')
     
@@ -279,24 +281,25 @@ class GratitudeModule(BaseModule):
             logger.error(f"Failed to save to Notion: {e}")
             return False
     
+    @owner_only
     async def review_command(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Command /review - AI-powered weekly gratitude insights"""
-        await update.message.reply_text("🔄 Analyzing your gratitude entries...")
+        await update.message.reply_text("🔄 Анализирую твои записи благодарности...")
         
         # Get entries from last 7 days
         entries = await self._get_week_entries()
         
         if not entries or len(entries) < 2:
             await update.message.reply_text(
-                "📊 **Weekly Insights**\n\n"
-                "Not enough entries for analysis yet.\n"
-                "Keep writing gratitude daily, and I'll show you patterns!\n\n"
-                f"Current entries this week: {len(entries) if entries else 0}\n"
-                "Minimum needed: 2",
+                "📊 **Недельный обзор**\n\n"
+                "Недостаточно записей для анализа.\n"
+                "Продолжай писать благодарности каждый день, и я покажу паттерны!\n\n"
+                f"Записей на этой неделе: {len(entries) if entries else 0}\n"
+                "Минимум нужно: 2",
                 parse_mode='Markdown'
             )
             return
@@ -512,18 +515,18 @@ If no challenges, recommend skills that enhance what's already working."""
         today = date.today()
         week_ago = today - timedelta(days=7)
         
-        message = f"📊 **Weekly Gratitude Insights**\n"
-        message += f"_{week_ago.strftime('%b %d')} - {today.strftime('%b %d')}_\n\n"
+        message = f"📊 **Недельный обзор благодарности**\n"
+        message += f"_{week_ago.strftime('%d.%m')} - {today.strftime('%d.%m')}_\n\n"
         
         # Entry stats
         morning_count = len([e for e in entries if e.get('time') == 'Morning'])
         evening_count = len([e for e in entries if e.get('time') == 'Evening'])
-        message += f"📝 Entries: {len(entries)} ({morning_count} morning, {evening_count} evening)\n\n"
+        message += f"📝 Записей: {len(entries)} ({morning_count} утро, {evening_count} вечер)\n\n"
         
         # Themes
         themes = analysis.get("themes", [])
         if themes:
-            message += "🔥 **Top Themes:**\n"
+            message += "🔥 **Главные темы:**\n"
             for theme in themes[:3]:
                 message += f"• {theme}\n"
             message += "\n"
@@ -531,20 +534,20 @@ If no challenges, recommend skills that enhance what's already working."""
         # Positive patterns
         positive = analysis.get("positive_patterns", "")
         if positive:
-            message += f"✨ **What makes you happy:**\n_{positive}_\n\n"
+            message += f"✨ **Что делает тебя счастливым:**\n_{positive}_\n\n"
         
         # Challenges and skill recommendations
         challenges = analysis.get("challenges", [])
         recommended = analysis.get("recommended_skills", [])
         
         if challenges:
-            message += "⚡ **Challenges detected:**\n"
+            message += "⚡ **Обнаруженные вызовы:**\n"
             for ch in challenges[:2]:
                 message += f"• {ch}\n"
             message += "\n"
         
         if recommended:
-            message += "💡 **Skill Recommendations:**\n"
+            message += "💡 **Рекомендации по навыкам:**\n"
             for rec in recommended[:2]:
                 skill_name = rec.get("skill", "")
                 reason = rec.get("reason", "")
@@ -553,21 +556,21 @@ If no challenges, recommend skills that enhance what's already working."""
                 progress = skills_progress.get(skill_name, 0)
                 if progress > 0:
                     message += f"📚 **{skill_name}** ({progress:.0f}%)\n"
-                    message += f"_You're already learning this! Keep going._\n\n"
+                    message += f"_Ты уже изучаешь это! Продолжай._\n\n"
                 else:
-                    message += f"📚 **{skill_name}** (not started)\n"
+                    message += f"📚 **{skill_name}** (не начат)\n"
                     message += f"_{reason}_\n\n"
         
         # AI insight
         insight = analysis.get("insight", "")
         if insight:
-            message += f"🎯 **Insight:**\n_{insight}_\n\n"
+            message += f"🎯 **Инсайт:**\n_{insight}_\n\n"
         
         # Streak encouragement
         if len(entries) >= 14:
-            message += "🏆 Amazing! You wrote gratitude every day this week!\n"
+            message += "🏆 Невероятно! Ты писал благодарность каждый день на этой неделе!\n"
         elif len(entries) >= 7:
-            message += "👏 Great consistency! Keep it up!\n"
+            message += "👏 Отличная последовательность! Продолжай!\n"
         
         return message
     
@@ -578,10 +581,10 @@ If no challenges, recommend skills that enhance what's already working."""
         if not entries or len(entries) < 2:
             await bot.send_message(
                 chat_id=chat_id,
-                text="📊 **Friday Weekly Review**\n\n"
-                     "Not enough gratitude entries this week for insights.\n"
-                     "Try to write at least 2 entries next week!\n\n"
-                     "Use /gratitude to start now 🙏",
+                text="📊 **Пятничный недельный обзор**\n\n"
+                     "Недостаточно записей благодарности на этой неделе для анализа.\n"
+                     "Постарайся написать хотя бы 2 записи на следующей неделе!\n\n"
+                     "Используй /gratitude чтобы начать 🙏",
                 parse_mode='Markdown'
             )
             return

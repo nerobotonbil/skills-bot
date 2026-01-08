@@ -81,6 +81,9 @@ SQLITE_DB_PATH = DATA_DIR / "bot.db"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = DATA_DIR / "bot.log"
 
+# Доступ только для владельца
+ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", "1010004170"))
+
 # Skill Categories for organized display
 SKILL_CATEGORIES = {
     "Communication": [

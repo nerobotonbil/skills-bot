@@ -1,5 +1,5 @@
 """
-Reminders module - morning/evening gratitude, weekly review, and streak notifications
+Модуль напоминаний - утренняя/вечерняя благодарность, недельный обзор, защита серии
 """
 import logging
 from typing import Optional
@@ -17,23 +17,23 @@ from config.settings import (
 
 logger = logging.getLogger(__name__)
 
-# Friday evening time for weekly review
+# Время пятничного обзора
 FRIDAY_REVIEW_TIME = "19:00"
 
-# Streak reminder time (afternoon, before evening task)
+# Время напоминания о серии (днём, до вечерней задачи)
 STREAK_REMINDER_TIME = "18:00"
 
 
 class ReminderService:
     """
-    Reminder service.
+    Сервис напоминаний.
     
-    Schedule:
-    - 09:00 — morning gratitude prompt
-    - 18:00 — streak protection reminder (loss aversion)
-    - 20:00 — evening task (smart recommendation with deep practice block)
-    - 23:00 — evening gratitude prompt
-    - Friday 19:00 — weekly gratitude review with AI insights
+    Расписание:
+    - 09:00 — утренняя благодарность
+    - 18:00 — защита серии (loss aversion)
+    - 20:00 — вечерняя задача (блок глубокой практики)
+    - 23:00 — вечерняя благодарность
+    - Пятница 19:00 — недельный обзор с AI
     """
     
     def __init__(self):
@@ -41,17 +41,17 @@ class ReminderService:
         self._chat_id: Optional[int] = None
     
     def setup(self, app: Application) -> None:
-        """Sets up the reminder service"""
+        """Настраивает сервис напоминаний"""
         self._app = app
         
-        # Parse times
+        # Парсим время
         morning_hour, morning_minute = scheduler.parse_time(MORNING_REMINDER_TIME)
         streak_hour, streak_minute = scheduler.parse_time(STREAK_REMINDER_TIME)
         task_hour, task_minute = scheduler.parse_time(EVENING_TASK_TIME)
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
         friday_hour, friday_minute = scheduler.parse_time(FRIDAY_REVIEW_TIME)
         
-        # Morning gratitude (09:00)
+        # Утренняя благодарность (09:00)
         scheduler.add_daily_job(
             "morning_reminder",
             self.send_morning_gratitude,
@@ -59,7 +59,7 @@ class ReminderService:
             minute=morning_minute
         )
         
-        # Streak reminder (18:00) — loss aversion notification
+        # Напоминание о серии (18:00) — loss aversion
         scheduler.add_daily_job(
             "streak_reminder",
             self.send_streak_reminder,
@@ -67,7 +67,7 @@ class ReminderService:
             minute=streak_minute
         )
         
-        # Evening task (20:00) — smart recommendation with deep practice
+        # Вечерняя задача (20:00) — блок глубокой практики
         scheduler.add_daily_job(
             "evening_task",
             self.send_evening_task,
@@ -75,7 +75,7 @@ class ReminderService:
             minute=task_minute
         )
         
-        # Evening gratitude (23:00)
+        # Вечерняя благодарность (23:00)
         scheduler.add_daily_job(
             "evening_reminder",
             self.send_evening_gratitude,
@@ -83,41 +83,41 @@ class ReminderService:
             minute=evening_minute
         )
         
-        # Friday weekly review (19:00)
+        # Пятничный недельный обзор (19:00)
         scheduler.add_weekly_job(
             "friday_review",
             self.send_weekly_review,
-            day_of_week=4,  # Friday (0=Monday)
+            day_of_week=4,  # Пятница (0=Понедельник)
             hour=friday_hour,
             minute=friday_minute
         )
         
         logger.info(
-            f"Reminders scheduled: morning at {MORNING_REMINDER_TIME}, "
-            f"streak at {STREAK_REMINDER_TIME}, "
-            f"task at {EVENING_TASK_TIME}, evening at {EVENING_REMINDER_TIME}, "
-            f"weekly review on Friday at {FRIDAY_REVIEW_TIME}"
+            f"Напоминания настроены: утро в {MORNING_REMINDER_TIME}, "
+            f"серия в {STREAK_REMINDER_TIME}, "
+            f"задача в {EVENING_TASK_TIME}, вечер в {EVENING_REMINDER_TIME}, "
+            f"недельный обзор в пятницу в {FRIDAY_REVIEW_TIME}"
         )
     
     def set_chat_id(self, chat_id: int) -> None:
-        """Sets chat ID for sending reminders"""
+        """Устанавливает chat ID для отправки напоминаний"""
         self._chat_id = chat_id
-        logger.info(f"Reminder chat ID set to {chat_id}")
+        logger.info(f"Chat ID для напоминаний установлен: {chat_id}")
     
     async def send_morning_gratitude(self) -> None:
         """
-        Sends morning gratitude prompt (09:00).
+        Отправляет утреннюю благодарность (09:00).
         """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send morning gratitude: app or chat_id not set")
+            logger.warning("Не могу отправить утреннюю благодарность: app или chat_id не установлены")
             return
         
         try:
             message = (
-                "🌅 **Good morning!**\n\n"
-                "What are you grateful for this morning?\n"
-                "What good awaits you today?\n\n"
-                "_Just reply to this message_"
+                "🌅 **Доброе утро!**\n\n"
+                "За что ты благодарен этим утром?\n"
+                "Что хорошего ждёт тебя сегодня?\n\n"
+                "_Просто ответь на это сообщение_"
             )
             
             await self._app.bot.send_message(
@@ -127,26 +127,26 @@ class ReminderService:
             )
             
             gratitude_module.set_waiting_for_gratitude(self._chat_id, "morning")
-            logger.info("Morning gratitude prompt sent")
+            logger.info("Утренняя благодарность отправлена")
             
         except Exception as e:
-            logger.error(f"Failed to send morning gratitude: {e}")
+            logger.error(f"Ошибка отправки утренней благодарности: {e}")
     
     async def send_streak_reminder(self) -> None:
         """
-        Sends streak protection reminder (18:00).
-        Uses loss aversion psychology to motivate practice.
-        Only sends if streak is at risk.
+        Отправляет напоминание о защите серии (18:00).
+        Использует психологию неприятия потерь для мотивации.
+        Отправляется только если серия под угрозой.
         """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send streak reminder: app or chat_id not set")
+            logger.warning("Не могу отправить напоминание о серии: app или chat_id не установлены")
             return
         
         try:
-            # Import here to avoid circular imports
+            # Импортируем здесь чтобы избежать циклических импортов
             from modules.productivity.module import productivity_module
             
-            # Generate loss aversion message (returns None if not needed)
+            # Генерируем сообщение loss aversion (возвращает None если не нужно)
             message = productivity_module.generate_loss_aversion_reminder()
             
             if message:
@@ -155,29 +155,29 @@ class ReminderService:
                     text=message,
                     parse_mode='Markdown'
                 )
-                logger.info("Streak reminder sent (loss aversion)")
+                logger.info("Напоминание о серии отправлено (loss aversion)")
             else:
-                logger.info("Streak reminder skipped (already practiced today or no streak)")
+                logger.info("Напоминание о серии пропущено (уже практиковался сегодня или нет серии)")
             
         except Exception as e:
-            logger.error(f"Failed to send streak reminder: {e}")
+            logger.error(f"Ошибка отправки напоминания о серии: {e}")
     
     async def send_evening_task(self) -> None:
         """
-        Sends evening task (20:00).
-        Now includes deep practice block with interleaving.
+        Отправляет вечернюю задачу (20:00).
+        Теперь включает блок глубокой практики с чередованием.
         """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send evening task: app or chat_id not set")
+            logger.warning("Не могу отправить вечернюю задачу: app или chat_id не установлены")
             return
         
         try:
-            # Import here to avoid circular imports
+            # Импортируем здесь чтобы избежать циклических импортов
             from modules.productivity.module import productivity_module
             
             skills = await notion_module.refresh_skills_cache()
             
-            # Generate deep practice block
+            # Генерируем блок глубокой практики
             block = productivity_module.generate_deep_practice_block(skills)
             
             if block.get("completed"):
@@ -186,7 +186,7 @@ class ReminderService:
                     "Ты достиг невероятного результата. Поздравляю!"
                 )
             elif block.get("segments"):
-                # Build deep practice block message
+                # Формируем сообщение блока глубокой практики
                 message = (
                     "🧠 **Вечерний блок глубокой практики**\n\n"
                     "_Структурированная сессия для максимального усвоения._\n\n"
@@ -194,9 +194,19 @@ class ReminderService:
                 
                 from config.settings import CATEGORY_EMOJI, CONTENT_EMOJI, CONTENT_NAMES_EN
                 
+                # Русские названия типов контента
+                content_names_ru = {
+                    "Lectures": "лекция",
+                    "Practice hours": "практика (1 час)",
+                    "Videos": "видео",
+                    "Films ": "фильм",
+                    "VC Lectures": "VC лекция"
+                }
+                
                 for segment in block["segments"]:
                     emoji = CATEGORY_EMOJI.get(segment["category"], "📚")
                     content_emoji = CONTENT_EMOJI.get(segment["content_type"], "📖")
+                    content_name = content_names_ru.get(segment["content_type"], segment["content_type"])
                     
                     focus_label = {
                         "deep": "🎯 Глубокий фокус",
@@ -207,7 +217,7 @@ class ReminderService:
                     message += (
                         f"**{segment['order']}. {segment['skill']}** {emoji}\n"
                         f"   {focus_label} — {segment['duration_mins']} мин\n"
-                        f"   {content_emoji} {segment['instruction']}\n\n"
+                        f"   {content_emoji} {content_name}\n\n"
                     )
                 
                 message += (
@@ -216,7 +226,7 @@ class ReminderService:
                     "Используй /deepblock для нового блока или /interleave для микса навыков."
                 )
             else:
-                # Fallback to regular recommendation
+                # Запасной вариант — обычная рекомендация
                 message = learning_module.generate_evening_task_message(skills)
             
             await self._app.bot.send_message(
@@ -225,11 +235,11 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            logger.info("Evening task sent with deep practice block")
+            logger.info("Вечерняя задача отправлена с блоком глубокой практики")
             
         except Exception as e:
-            logger.error(f"Failed to send evening task: {e}")
-            # Fallback to simple message
+            logger.error(f"Ошибка отправки вечерней задачи: {e}")
+            # Запасной вариант
             try:
                 skills = await notion_module.refresh_skills_cache()
                 message = learning_module.generate_evening_task_message(skills)
@@ -239,23 +249,23 @@ class ReminderService:
                     parse_mode='Markdown'
                 )
             except Exception as e2:
-                logger.error(f"Fallback also failed: {e2}")
+                logger.error(f"Запасной вариант тоже не сработал: {e2}")
     
     async def send_evening_gratitude(self) -> None:
         """
-        Sends evening gratitude prompt (23:00).
+        Отправляет вечернюю благодарность (23:00).
         """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send evening gratitude: app or chat_id not set")
+            logger.warning("Не могу отправить вечернюю благодарность: app или chat_id не установлены")
             return
         
         try:
             message = (
-                "🌙 **Good evening!**\n\n"
-                "Time to reflect on the day.\n"
-                "What are you grateful for today?\n"
-                "What good happened?\n\n"
-                "_Just reply to this message_"
+                "🌙 **Добрый вечер!**\n\n"
+                "Время подвести итоги дня.\n"
+                "За что ты благодарен сегодня?\n"
+                "Что хорошего произошло?\n\n"
+                "_Просто ответь на это сообщение_"
             )
             
             await self._app.bot.send_message(
@@ -265,36 +275,36 @@ class ReminderService:
             )
             
             gratitude_module.set_waiting_for_gratitude(self._chat_id, "evening")
-            logger.info("Evening gratitude prompt sent")
+            logger.info("Вечерняя благодарность отправлена")
             
         except Exception as e:
-            logger.error(f"Failed to send evening gratitude: {e}")
+            logger.error(f"Ошибка отправки вечерней благодарности: {e}")
     
     async def send_weekly_review(self) -> None:
         """
-        Sends weekly gratitude review with AI insights (Friday 19:00).
-        Analyzes patterns, detects challenges, recommends skills.
+        Отправляет недельный обзор с AI-анализом (Пятница 19:00).
+        Анализирует паттерны, определяет вызовы, рекомендует навыки.
         """
         if not self._app or not self._chat_id:
-            logger.warning("Cannot send weekly review: app or chat_id not set")
+            logger.warning("Не могу отправить недельный обзор: app или chat_id не установлены")
             return
         
         try:
-            logger.info("Sending Friday weekly review...")
+            logger.info("Отправляю пятничный недельный обзор...")
             
-            # Use gratitude module's weekly review function
+            # Используем функцию недельного обзора из модуля благодарности
             await gratitude_module.send_weekly_review(
                 self._app.bot, 
                 self._chat_id
             )
             
-            logger.info("Weekly review sent successfully")
+            logger.info("Недельный обзор успешно отправлен")
             
         except Exception as e:
-            logger.error(f"Failed to send weekly review: {e}")
+            logger.error(f"Ошибка отправки недельного обзора: {e}")
     
     async def send_custom_reminder(self, message: str) -> None:
-        """Sends custom reminder"""
+        """Отправляет произвольное напоминание"""
         if not self._app or not self._chat_id:
             return
         
@@ -305,8 +315,8 @@ class ReminderService:
                 parse_mode='Markdown'
             )
         except Exception as e:
-            logger.error(f"Failed to send custom reminder: {e}")
+            logger.error(f"Ошибка отправки произвольного напоминания: {e}")
 
 
-# Global service instance
+# Глобальный экземпляр сервиса
 reminder_service = ReminderService()
