@@ -33,6 +33,7 @@ from modules.gratitude.module import gratitude_module
 from modules.voice.module import voice_module
 from modules.ai_assistant.module import ai_assistant_module
 from modules.ideas.module import ideas_module
+from modules.productivity.module import productivity_module
 from modules.reminders import reminder_service
 
 # Logging setup
@@ -94,9 +95,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 **Learning:**
 /today - Today's goal and tasks
-/week - Weekly plan
 /progress - Progress on all skills
 /sync - Sync with Notion
+
+**🔥 Productivity (NEW!):**
+/streak - Your practice streak
+/deepblock - Deep practice block (45 min)
+/interleave - Interleaved skill practice
+/freeze - Use streak freeze
 
 **Gratitude Journal:**
 /gratitude - Write gratitude entry
@@ -104,16 +110,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 **AI Assistant:**
 Just text or send voice - I'll understand!
-Can help with learning questions, motivation, gratitude entries.
 
 **Modules:**
 /modules - List of active modules
 
-**How reminders work:**
-Every morning at 9:00 AM (Tbilisi) I'll send you the daily goal.
-Every evening at 9:00 PM - day summary and evening gratitude.
-
-You can reply with text or voice message!
+**Reminders (Tbilisi time):**
+🌅 09:00 — Morning gratitude
+⚡ 18:00 — Streak reminder
+🧠 20:00 — Deep practice block
+🌙 23:00 — Evening gratitude
+📊 Friday 19:00 — Weekly review
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -143,6 +149,9 @@ async def post_init(application: Application) -> None:
         BotCommand("start", "Start the bot"),
         BotCommand("today", "Today's goal"),
         BotCommand("progress", "Skill progress"),
+        BotCommand("streak", "Your practice streak"),
+        BotCommand("deepblock", "Deep practice block"),
+        BotCommand("interleave", "Interleaved practice"),
         BotCommand("gratitude", "Write gratitude entry"),
         BotCommand("review", "Review gratitude entries"),
         BotCommand("sync", "Sync with Notion"),
@@ -188,6 +197,7 @@ def main() -> None:
     module_manager.register_module(voice_module)
     module_manager.register_module(ai_assistant_module)
     module_manager.register_module(ideas_module)
+    module_manager.register_module(productivity_module)
     
     logger.info(f"Registered {len(module_manager)} modules")
     

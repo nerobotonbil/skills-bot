@@ -1,5 +1,5 @@
 """
-Reminders module - morning/evening gratitude and weekly review notifications
+Reminders module - morning/evening gratitude, weekly review, and streak notifications
 """
 import logging
 from typing import Optional
@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 # Friday evening time for weekly review
 FRIDAY_REVIEW_TIME = "19:00"
 
+# Streak reminder time (afternoon, before evening task)
+STREAK_REMINDER_TIME = "18:00"
+
 
 class ReminderService:
     """
@@ -27,7 +30,8 @@ class ReminderService:
     
     Schedule:
     - 09:00 — morning gratitude prompt
-    - 20:00 — evening task (smart recommendation)
+    - 18:00 — streak protection reminder (loss aversion)
+    - 20:00 — evening task (smart recommendation with deep practice block)
     - 23:00 — evening gratitude prompt
     - Friday 19:00 — weekly gratitude review with AI insights
     """
@@ -42,6 +46,7 @@ class ReminderService:
         
         # Parse times
         morning_hour, morning_minute = scheduler.parse_time(MORNING_REMINDER_TIME)
+        streak_hour, streak_minute = scheduler.parse_time(STREAK_REMINDER_TIME)
         task_hour, task_minute = scheduler.parse_time(EVENING_TASK_TIME)
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
         friday_hour, friday_minute = scheduler.parse_time(FRIDAY_REVIEW_TIME)
@@ -54,7 +59,15 @@ class ReminderService:
             minute=morning_minute
         )
         
-        # Evening task (20:00) — smart recommendation
+        # Streak reminder (18:00) — loss aversion notification
+        scheduler.add_daily_job(
+            "streak_reminder",
+            self.send_streak_reminder,
+            hour=streak_hour,
+            minute=streak_minute
+        )
+        
+        # Evening task (20:00) — smart recommendation with deep practice
         scheduler.add_daily_job(
             "evening_task",
             self.send_evening_task,
@@ -81,6 +94,7 @@ class ReminderService:
         
         logger.info(
             f"Reminders scheduled: morning at {MORNING_REMINDER_TIME}, "
+            f"streak at {STREAK_REMINDER_TIME}, "
             f"task at {EVENING_TASK_TIME}, evening at {EVENING_REMINDER_TIME}, "
             f"weekly review on Friday at {FRIDAY_REVIEW_TIME}"
         )
@@ -118,17 +132,92 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Failed to send morning gratitude: {e}")
     
+    async def send_streak_reminder(self) -> None:
+        """
+        Sends streak protection reminder (18:00).
+        Uses loss aversion psychology to motivate practice.
+        Only sends if streak is at risk.
+        """
+        if not self._app or not self._chat_id:
+            logger.warning("Cannot send streak reminder: app or chat_id not set")
+            return
+        
+        try:
+            # Import here to avoid circular imports
+            from modules.productivity.module import productivity_module
+            
+            # Generate loss aversion message (returns None if not needed)
+            message = productivity_module.generate_loss_aversion_reminder()
+            
+            if message:
+                await self._app.bot.send_message(
+                    chat_id=self._chat_id,
+                    text=message,
+                    parse_mode='Markdown'
+                )
+                logger.info("Streak reminder sent (loss aversion)")
+            else:
+                logger.info("Streak reminder skipped (already practiced today or no streak)")
+            
+        except Exception as e:
+            logger.error(f"Failed to send streak reminder: {e}")
+    
     async def send_evening_task(self) -> None:
         """
         Sends evening task (20:00).
+        Now includes deep practice block with interleaving.
         """
         if not self._app or not self._chat_id:
             logger.warning("Cannot send evening task: app or chat_id not set")
             return
         
         try:
+            # Import here to avoid circular imports
+            from modules.productivity.module import productivity_module
+            
             skills = await notion_module.refresh_skills_cache()
-            message = learning_module.generate_evening_task_message(skills)
+            
+            # Generate deep practice block
+            block = productivity_module.generate_deep_practice_block(skills)
+            
+            if block.get("completed"):
+                message = (
+                    "🎉 **Все навыки завершены!**\n\n"
+                    "Ты достиг невероятного результата. Поздравляю!"
+                )
+            elif block.get("segments"):
+                # Build deep practice block message
+                message = (
+                    "🧠 **Вечерний блок глубокой практики**\n\n"
+                    "_Структурированная сессия для максимального усвоения._\n\n"
+                )
+                
+                from config.settings import CATEGORY_EMOJI, CONTENT_EMOJI, CONTENT_NAMES_EN
+                
+                for segment in block["segments"]:
+                    emoji = CATEGORY_EMOJI.get(segment["category"], "📚")
+                    content_emoji = CONTENT_EMOJI.get(segment["content_type"], "📖")
+                    
+                    focus_label = {
+                        "deep": "🎯 Глубокий фокус",
+                        "practice": "💪 Практика",
+                        "review": "🔄 Повторение"
+                    }.get(segment["focus"], "📖")
+                    
+                    message += (
+                        f"**{segment['order']}. {segment['skill']}** {emoji}\n"
+                        f"   {focus_label} — {segment['duration_mins']} мин\n"
+                        f"   {content_emoji} {segment['instruction']}\n\n"
+                    )
+                
+                message += (
+                    f"⏱ **Общее время:** {block['total_duration']} минут\n\n"
+                    "💡 _Совет: Убери отвлечения и включи таймер!_\n\n"
+                    "Используй /deepblock для нового блока или /interleave для микса навыков."
+                )
+            else:
+                # Fallback to regular recommendation
+                message = learning_module.generate_evening_task_message(skills)
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -136,10 +225,21 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            logger.info("Evening task sent")
+            logger.info("Evening task sent with deep practice block")
             
         except Exception as e:
             logger.error(f"Failed to send evening task: {e}")
+            # Fallback to simple message
+            try:
+                skills = await notion_module.refresh_skills_cache()
+                message = learning_module.generate_evening_task_message(skills)
+                await self._app.bot.send_message(
+                    chat_id=self._chat_id,
+                    text=message,
+                    parse_mode='Markdown'
+                )
+            except Exception as e2:
+                logger.error(f"Fallback also failed: {e2}")
     
     async def send_evening_gratitude(self) -> None:
         """
