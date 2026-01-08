@@ -1,5 +1,5 @@
 """
-Модуль записи идей в Notion
+Ideas recording module for Notion
 """
 import logging
 import os
@@ -15,48 +15,48 @@ logger = logging.getLogger(__name__)
 
 class IdeasModule(BaseModule):
     """
-    Модуль для записи идей в Notion.
-    Работает через AI-ассистента, который определяет намерение записать идею.
+    Module for recording ideas to Notion.
+    Works through AI assistant, which determines intent to save an idea.
     """
     
     def __init__(self):
         super().__init__(
             name="ideas",
-            description="Запись идей и заметок в Notion"
+            description="Recording ideas and notes to Notion"
         )
         self.notion_token = os.getenv("NOTION_API_TOKEN")
-        # Используем database_id, а не data_source_id
+        # Use database_id, not data_source_id
         self.database_id = "2e28db7c936780b28d66e45ab2e6f7e6"
         self.notion_api_url = "https://api.notion.com/v1/pages"
         
-        # Логируем статус инициализации
+        # Log initialization status
         if self.notion_token:
             logger.info(f"Ideas module initialized with token: {self.notion_token[:10]}...")
         else:
             logger.warning("Ideas module: NOTION_API_TOKEN not set!")
         
     def get_handlers(self):
-        """Этот модуль не имеет прямых обработчиков - работает через AI"""
+        """This module has no direct handlers - works through AI"""
         return []
     
     async def save_idea(self, idea_text: str, user_id: int = None) -> dict:
         """
-        Сохраняет идею в Notion.
+        Saves idea to Notion.
         
         Args:
-            idea_text: Текст идеи (уже обработанный AI)
-            user_id: ID пользователя Telegram
+            idea_text: Idea text (already processed by AI)
+            user_id: Telegram user ID
             
         Returns:
-            dict с результатом: {"success": bool, "message": str, "url": str}
+            dict with result: {"success": bool, "message": str, "url": str}
         """
-        # Перечитываем токен на случай, если он был установлен позже
+        # Re-read token in case it was set later
         token = os.getenv("NOTION_API_TOKEN")
         if not token:
             logger.error("NOTION_API_TOKEN not set in environment")
             return {
                 "success": False,
-                "message": "Notion не настроен (нет токена)",
+                "message": "Notion not configured (no token)",
                 "url": None
             }
         
@@ -66,7 +66,7 @@ class IdeasModule(BaseModule):
             "Notion-Version": "2022-06-28"
         }
         
-        # Формируем данные для создания страницы
+        # Format data for page creation
         data = {
             "parent": {
                 "database_id": self.database_id
@@ -104,20 +104,20 @@ class IdeasModule(BaseModule):
                     logger.info(f"Idea saved successfully: {page_url}")
                     return {
                         "success": True,
-                        "message": "Идея сохранена в Notion",
+                        "message": "Idea saved to Notion",
                         "url": page_url
                     }
                 else:
                     error_text = response.text
                     logger.error(f"Notion API error: {response.status_code} - {error_text}")
                     
-                    # Пробуем альтернативный формат database_id
+                    # Try alternative database_id format
                     if response.status_code == 404:
                         return await self._try_alternative_save(token, idea_text, headers)
                     
                     return {
                         "success": False,
-                        "message": f"Ошибка Notion API: {response.status_code}",
+                        "message": f"Notion API error: {response.status_code}",
                         "url": None
                     }
                     
@@ -125,13 +125,13 @@ class IdeasModule(BaseModule):
             logger.error(f"Error saving idea to Notion: {e}")
             return {
                 "success": False,
-                "message": f"Ошибка: {str(e)}",
+                "message": f"Error: {str(e)}",
                 "url": None
             }
     
     async def _try_alternative_save(self, token: str, idea_text: str, headers: dict) -> dict:
-        """Пробует альтернативный формат database_id с дефисами"""
-        # Пробуем с дефисами
+        """Tries alternative database_id format with dashes"""
+        # Try with dashes
         alt_database_id = "2e28db7c-9367-80b2-8d66-e45ab2e6f7e6"
         
         data = {
@@ -167,12 +167,12 @@ class IdeasModule(BaseModule):
                 if response.status_code == 200:
                     result = response.json()
                     page_url = result.get("url", "")
-                    # Обновляем database_id на рабочий
+                    # Update database_id to working one
                     self.database_id = alt_database_id
                     logger.info(f"Idea saved with alternative ID: {page_url}")
                     return {
                         "success": True,
-                        "message": "Идея сохранена в Notion",
+                        "message": "Idea saved to Notion",
                         "url": page_url
                     }
                 else:
@@ -180,17 +180,17 @@ class IdeasModule(BaseModule):
                     logger.error(f"Alternative also failed: {response.status_code} - {error_text}")
                     return {
                         "success": False,
-                        "message": f"Ошибка Notion API: {response.status_code}",
+                        "message": f"Notion API error: {response.status_code}",
                         "url": None
                     }
         except Exception as e:
             logger.error(f"Error in alternative save: {e}")
             return {
                 "success": False,
-                "message": f"Ошибка: {str(e)}",
+                "message": f"Error: {str(e)}",
                 "url": None
             }
 
 
-# Глобальный экземпляр модуля
+# Global module instance
 ideas_module = IdeasModule()

@@ -1,14 +1,14 @@
 """
-Конфигурация бота
+Bot Configuration
 """
 import os
 from pathlib import Path
 
-# Базовые пути
+# Base paths
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-# Токены из переменных окружения (ОБЯЗАТЕЛЬНО настроить на сервере!)
+# Tokens from environment variables (MUST be configured on server!)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 NOTION_API_TOKEN = os.getenv("NOTION_API_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -17,28 +17,28 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 NOTION_SKILLS_DATABASE_ID = os.getenv("NOTION_SKILLS_DATABASE_ID", "efc48aa99cde4bcb8fab8e3b0ef625c0")
 NOTION_SKILLS_DATA_SOURCE = os.getenv("NOTION_SKILLS_DATA_SOURCE", "collection://1f4e8789-6dd5-400f-b538-ce1c1bcc6487")
 
-# Notion Gratitude Journal (будет создана автоматически)
+# Notion Gratitude Journal (will be created automatically)
 NOTION_GRATITUDE_DATABASE_ID = os.getenv("NOTION_GRATITUDE_DATABASE_ID", None)
 
-# Максимальные значения для прогресс-баров
+# Maximum values for progress bars
 MAX_VALUES = {
-    "Lectures": 10,        # Лекции (теория)
-    "Practice hours": 20,  # Практика (часы)
-    "Videos": 5,          # Видео-истории (FBI, доктора и т.д.)
-    "Films ": 3,           # Фильмы (с пробелом в конце как в Notion)
-    "VC Lectures": 5       # VC лекции (советы от венчурных капиталистов)
+    "Lectures": 10,        # Lectures (theory)
+    "Practice hours": 20,  # Practice (hours)
+    "Videos": 5,           # Video stories (FBI, doctors, etc.)
+    "Films ": 3,           # Films (with trailing space as in Notion)
+    "VC Lectures": 5       # VC lectures (venture capitalist advice)
 }
 
-# Описания типов контента
+# Content type descriptions
 CONTENT_DESCRIPTIONS = {
-    "Lectures": "📖 Лекции - теоретические материалы",
-    "Practice hours": "💪 Практика - применение навыка на практике",
-    "Videos": "🎬 Видео - истории от профессионалов (FBI, доктора и др.)",
-    "Films ": "🎥 Фильмы - художественные фильмы по теме",
-    "VC Lectures": "💼 VC Лекции - советы от венчурных капиталистов"
+    "Lectures": "📖 Lectures - theoretical materials",
+    "Practice hours": "💪 Practice - applying the skill in practice",
+    "Videos": "🎬 Videos - stories from professionals (FBI, doctors, etc.)",
+    "Films ": "🎥 Films - feature films on the topic",
+    "VC Lectures": "💼 VC Lectures - advice from venture capitalists"
 }
 
-# Эмодзи для типов контента
+# Emoji for content types
 CONTENT_EMOJI = {
     "Lectures": "📖",
     "Practice hours": "💪",
@@ -47,33 +47,36 @@ CONTENT_EMOJI = {
     "VC Lectures": "💼"
 }
 
-# Русские названия типов контента
-CONTENT_NAMES_RU = {
-    "Lectures": "лекцию",
-    "Practice hours": "практику (1 час)",
-    "Videos": "видео",
-    "Films ": "фильм",
-    "VC Lectures": "VC лекцию"
+# English names for content types (for recommendations)
+CONTENT_NAMES_EN = {
+    "Lectures": "lecture",
+    "Practice hours": "practice (1 hour)",
+    "Videos": "video",
+    "Films ": "film",
+    "VC Lectures": "VC lecture"
 }
 
-# Часовой пояс - Тбилиси (GMT+4)
+# Keep Russian names for backward compatibility
+CONTENT_NAMES_RU = CONTENT_NAMES_EN
+
+# Timezone - Tbilisi (GMT+4)
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Tbilisi")
 
-# Вечернее уведомление в 20:00 - психологически правильное время после работы
+# Evening notification at 20:00 - psychologically right time after work
 EVENING_TASK_TIME = "20:00"
 
-# Утреннее напоминание (благодарность)
+# Morning reminder (gratitude)
 MORNING_REMINDER_TIME = "09:00"
 
-# Вечернее напоминание (итоги + благодарность)
+# Evening reminder (summary + gratitude)
 EVENING_REMINDER_TIME = "21:00"
 
-# Настройки голосовых сообщений
+# Voice message settings
 VOICE_TRANSCRIPTION_METHOD = "openai"
 
-# База данных SQLite
+# SQLite database
 SQLITE_DB_PATH = DATA_DIR / "bot.db"
 
-# Логирование
+# Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = DATA_DIR / "bot.log"

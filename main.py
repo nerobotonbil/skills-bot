@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Learning Bot - Telegram бот для обучения и саморазвития
+Learning Bot - Telegram bot for learning and self-development
 
-Модули:
-- Notion: интеграция с Notion для хранения данных
-- Learning: планирование обучения и отслеживание прогресса
-- Gratitude: дневник благодарности
-- Voice: обработка голосовых сообщений
-- AI Assistant: AI-помощник для управления ботом через естественный язык
+Modules:
+- Notion: integration with Notion for data storage
+- Learning: learning planning and progress tracking
+- Gratitude: gratitude journal
+- Voice: voice message processing
+- AI Assistant: AI helper for natural language control
 
-Запуск:
+Run:
     python main.py
 """
 import sys
 import logging
 from pathlib import Path
 
-# Добавляем корневую директорию в путь
+# Add root directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from telegram import Update
@@ -26,7 +26,7 @@ from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL, DATA_DIR
 from core.module_manager import module_manager
 from core.scheduler import scheduler
 
-# Импортируем модули
+# Import modules
 from modules.notion.module import notion_module
 from modules.learning.module import learning_module
 from modules.gratitude.module import gratitude_module
@@ -35,7 +35,7 @@ from modules.ai_assistant.module import ai_assistant_module
 from modules.ideas.module import ideas_module
 from modules.reminders import reminder_service
 
-# Настройка логирования
+# Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=getattr(logging, LOG_LEVEL),
@@ -48,85 +48,85 @@ logger = logging.getLogger(__name__)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /start"""
+    """Handler for /start command"""
     user = update.effective_user
     chat_id = update.effective_chat.id
     
-    # Сохраняем chat_id для напоминаний
+    # Save chat_id for reminders
     context.bot_data['user_chat_id'] = chat_id
     reminder_service.set_chat_id(chat_id)
     
     welcome_message = f"""
-🎯 Привет, {user.first_name}!
+🎯 Hey, {user.first_name}!
 
-Я твой персональный AI-помощник для обучения и саморазвития.
+I'm your personal AI assistant for learning and self-development.
 
-**Что я умею:**
-📚 Планировать ежедневное обучение (лекции, видео, практика)
-🙏 Вести дневник благодарности
-🎤 Принимать голосовые сообщения
-🤖 Отвечать на вопросы через AI
+**What I can do:**
+📚 Plan daily learning (lectures, videos, practice)
+🙏 Keep a gratitude journal
+🎤 Accept voice messages
+🤖 Answer questions via AI
 
-**Команды:**
-/today - Цель на сегодня
-/progress - Твой прогресс по навыкам
-/gratitude - Записать благодарность
-/review - Обзор записей благодарности
-/sync - Синхронизация с Notion
-/help - Справка по командам
+**Commands:**
+/today - Today's goal
+/progress - Your skill progress
+/gratitude - Write gratitude entry
+/review - Review gratitude entries
+/sync - Sync with Notion
+/help - Help with commands
 
-**Напоминания (по времени Тбилиси):**
-🌅 Утром в 9:00 - цель на день + благодарность
-🌙 Вечером в 21:00 - итоги + благодарность
+**Reminders (Tbilisi time):**
+🌅 Morning at 9:00 AM - daily goal + gratitude
+🌙 Evening at 9:00 PM - summary + gratitude
 
-**AI-ассистент:**
-Просто напиши мне текстом или отправь голосовое сообщение - я пойму и помогу!
+**AI Assistant:**
+Just text me or send a voice message - I'll understand and help!
 
-Готов начать? Напиши /today чтобы увидеть план на сегодня!
+Ready to start? Type /today to see today's plan!
 """
     await update.message.reply_text(welcome_message, parse_mode='Markdown')
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /help"""
+    """Handler for /help command"""
     help_text = """
-📖 **Справка по командам**
+📖 **Command Reference**
 
-**Обучение:**
-/today - Цель и задачи на сегодня
-/week - План на неделю
-/progress - Прогресс по всем навыкам
-/sync - Синхронизация с Notion
+**Learning:**
+/today - Today's goal and tasks
+/week - Weekly plan
+/progress - Progress on all skills
+/sync - Sync with Notion
 
-**Дневник благодарности:**
-/gratitude - Записать благодарность
-/review - Обзор записей
+**Gratitude Journal:**
+/gratitude - Write gratitude entry
+/review - Review entries
 
-**AI-ассистент:**
-Просто напиши текстом или отправь голосовое - я пойму!
-Могу помочь с вопросами об обучении, мотивацией, записью благодарностей.
+**AI Assistant:**
+Just text or send voice - I'll understand!
+Can help with learning questions, motivation, gratitude entries.
 
-**Модули:**
-/modules - Список активных модулей
+**Modules:**
+/modules - List of active modules
 
-**Как работают напоминания:**
-Каждое утро в 9:00 (Тбилиси) я пришлю тебе цель на день.
-Каждый вечер в 21:00 - итоги дня и вечернюю благодарность.
+**How reminders work:**
+Every morning at 9:00 AM (Tbilisi) I'll send you the daily goal.
+Every evening at 9:00 PM - day summary and evening gratitude.
 
-Ты можешь отвечать текстом или голосовым сообщением!
+You can reply with text or voice message!
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
 
 async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает список модулей"""
+    """Shows list of modules"""
     modules = module_manager.get_all_modules()
     
     if not modules:
-        await update.message.reply_text("Модули не загружены")
+        await update.message.reply_text("No modules loaded")
         return
     
-    text = "📦 **Модули бота:**\n\n"
+    text = "📦 **Bot Modules:**\n\n"
     for module in modules:
         status = "✅" if module.enabled else "❌"
         text += f"{status} **{module.name}**\n   {module.description}\n\n"
@@ -135,63 +135,63 @@ async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def post_init(application: Application) -> None:
-    """Выполняется после инициализации приложения"""
+    """Executed after application initialization"""
     from telegram import BotCommand
     
-    # Устанавливаем команды бота
+    # Set bot commands
     commands = [
-        BotCommand("start", "Начать работу с ботом"),
-        BotCommand("today", "Цель на сегодня"),
-        BotCommand("progress", "Прогресс по навыкам"),
-        BotCommand("gratitude", "Записать благодарность"),
-        BotCommand("review", "Обзор записей благодарности"),
-        BotCommand("sync", "Синхронизация с Notion"),
-        BotCommand("help", "Справка по командам"),
-        BotCommand("modules", "Список модулей"),
+        BotCommand("start", "Start the bot"),
+        BotCommand("today", "Today's goal"),
+        BotCommand("progress", "Skill progress"),
+        BotCommand("gratitude", "Write gratitude entry"),
+        BotCommand("review", "Review gratitude entries"),
+        BotCommand("sync", "Sync with Notion"),
+        BotCommand("help", "Command reference"),
+        BotCommand("modules", "List of modules"),
     ]
     await application.bot.set_my_commands(commands)
     
-    # Запускаем все модули
+    # Start all modules
     await module_manager.startup_all()
     
-    # Связываем voice модуль с AI-ассистентом
+    # Connect voice module to AI assistant
     voice_module.set_ai_assistant(ai_assistant_module)
     
-    # Связываем AI-ассистент с модулем идей
+    # Connect AI assistant to ideas module
     ai_assistant_module.set_ideas_module(ideas_module)
     
-    # Настраиваем сервис напоминаний
+    # Setup reminder service
     reminder_service.setup(application)
     
-    # Запускаем планировщик
+    # Start scheduler
     scheduler.start()
     
     logger.info("Bot initialized successfully with AI Assistant")
 
 
 async def shutdown(application: Application) -> None:
-    """Выполняется при остановке бота"""
+    """Executed on bot shutdown"""
     await module_manager.shutdown_all()
     scheduler.stop()
     logger.info("Bot shutdown complete")
 
 
 def main() -> None:
-    """Главная функция запуска бота"""
-    # Создаём директорию для данных
+    """Main function to start the bot"""
+    # Create data directory
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Регистрируем модули
+    # Register modules
     module_manager.register_module(notion_module)
     module_manager.register_module(learning_module)
     module_manager.register_module(gratitude_module)
     module_manager.register_module(voice_module)
-    module_manager.register_module(ai_assistant_module)  # AI-ассистент
-    module_manager.register_module(ideas_module)  # Модуль идей
+    module_manager.register_module(ai_assistant_module)
+    module_manager.register_module(ideas_module)
     
     logger.info(f"Registered {len(module_manager)} modules")
     
-    # Создаём приложение
+    # Create application
     application = (
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
@@ -200,15 +200,15 @@ def main() -> None:
         .build()
     )
     
-    # Регистрируем базовые обработчики
+    # Register base handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("modules", modules_command))
     
-    # Регистрируем модули в приложении
+    # Register modules in application
     module_manager.set_application(application)
     
-    # Запускаем бота
+    # Start bot
     logger.info("Starting bot...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 

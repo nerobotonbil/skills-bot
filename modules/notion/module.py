@@ -1,5 +1,5 @@
 """
-Модуль интеграции с Notion
+Notion integration module
 """
 import logging
 from typing import List, Optional
@@ -14,46 +14,46 @@ logger = logging.getLogger(__name__)
 
 class NotionModule(BaseModule):
     """
-    Модуль для интеграции с Notion.
-    Обеспечивает синхронизацию данных и базовые команды.
+    Module for Notion integration.
+    Provides data synchronization and basic commands.
     """
     
     def __init__(self):
         super().__init__(
             name="notion",
-            description="Интеграция с Notion для хранения данных"
+            description="Notion integration for data storage"
         )
         self.client = notion_client
-        self._all_skills_cache: List[dict] = []  # Все навыки
-        self._active_skills_cache: List[dict] = []  # Только активные
+        self._all_skills_cache: List[dict] = []  # All skills
+        self._active_skills_cache: List[dict] = []  # Only active
         self._cache_updated = None
     
     def get_handlers(self) -> List[BaseHandler]:
-        """Возвращает обработчики команд"""
+        """Returns command handlers"""
         return [
             CommandHandler("sync", self.sync_command),
         ]
     
     async def on_startup(self) -> None:
-        """Загружает данные при запуске"""
+        """Loads data on startup"""
         await self.refresh_skills_cache()
     
     async def on_shutdown(self) -> None:
-        """Закрывает клиент при остановке"""
+        """Closes client on shutdown"""
         await self.client.close()
     
     async def refresh_skills_cache(self) -> List[dict]:
-        """Обновляет кэш навыков"""
+        """Refreshes skills cache"""
         try:
-            # Загружаем все навыки
+            # Load all skills
             self._all_skills_cache = await self.client.get_all_skills()
             
-            # Фильтруем только активные (с прогрессом > 0)
+            # Filter only active (with progress > 0)
             self._active_skills_cache = self.client.filter_active_skills(
                 self._all_skills_cache
             )
             
-            # Рассчитываем приоритеты для активных навыков
+            # Calculate priorities for active skills
             self._active_skills_cache = self.client.calculate_skill_priorities(
                 self._active_skills_cache
             )
@@ -73,51 +73,51 @@ class NotionModule(BaseModule):
             return self._active_skills_cache
     
     def get_skills(self) -> List[dict]:
-        """Возвращает кэшированные АКТИВНЫЕ навыки"""
+        """Returns cached ACTIVE skills"""
         return self._active_skills_cache
     
     def get_all_skills(self) -> List[dict]:
-        """Возвращает ВСЕ навыки (включая неактивные)"""
+        """Returns ALL skills (including inactive)"""
         return self._all_skills_cache
     
     def get_active_skills_count(self) -> int:
-        """Возвращает количество активных навыков"""
+        """Returns number of active skills"""
         return len(self._active_skills_cache)
     
     def get_total_skills_count(self) -> int:
-        """Возвращает общее количество навыков"""
+        """Returns total number of skills"""
         return len(self._all_skills_cache)
     
     def get_skill_by_name(self, name: str) -> Optional[dict]:
-        """Находит навык по имени среди активных"""
+        """Finds skill by name among active"""
         for skill in self._active_skills_cache:
             if skill["name"].lower() == name.lower():
                 return skill
         return None
     
     async def sync_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Команда /sync - синхронизация с Notion"""
-        await update.message.reply_text("🔄 Синхронизация с Notion...")
+        """Command /sync - sync with Notion"""
+        await update.message.reply_text("🔄 Syncing with Notion...")
         
         try:
             skills = await self.refresh_skills_cache()
             
-            # Формируем список активных навыков
+            # Format list of active skills
             active_names = [s["name"] for s in skills]
-            active_list = "\n".join([f"• {name}" for name in active_names]) if active_names else "Нет активных навыков"
+            active_list = "\n".join([f"• {name}" for name in active_names]) if active_names else "No active skills"
             
             await update.message.reply_text(
-                f"✅ Синхронизация завершена!\n\n"
-                f"Всего навыков: {self.get_total_skills_count()}\n"
-                f"Активных (изучаются): {self.get_active_skills_count()}\n\n"
-                f"📚 **Активные навыки:**\n{active_list}",
+                f"✅ Sync complete!\n\n"
+                f"Total skills: {self.get_total_skills_count()}\n"
+                f"Active (learning): {self.get_active_skills_count()}\n\n"
+                f"📚 **Active skills:**\n{active_list}",
                 parse_mode='Markdown'
             )
         except Exception as e:
             await update.message.reply_text(
-                f"❌ Ошибка синхронизации: {str(e)}"
+                f"❌ Sync error: {str(e)}"
             )
 
 
-# Экземпляр модуля
+# Module instance
 notion_module = NotionModule()

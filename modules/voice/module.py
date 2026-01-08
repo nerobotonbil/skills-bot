@@ -1,5 +1,5 @@
 """
-Модуль обработки голосовых сообщений
+Voice message processing module
 """
 import logging
 import os
@@ -18,31 +18,31 @@ logger = logging.getLogger(__name__)
 
 class VoiceModule(BaseModule):
     """
-    Модуль для обработки голосовых сообщений.
-    Конвертирует голос в текст с помощью OpenAI Whisper.
-    После транскрибации передаёт текст AI-ассистенту для обработки.
+    Module for processing voice messages.
+    Converts voice to text using OpenAI Whisper.
+    After transcription, passes text to AI assistant for processing.
     """
     
     def __init__(self):
         super().__init__(
             name="voice",
-            description="Обработка голосовых сообщений и конвертация в текст"
+            description="Voice message processing and text conversion"
         )
         self._voice_dir = DATA_DIR / "voice"
         self._voice_dir.mkdir(parents=True, exist_ok=True)
         
-        # Ссылка на AI-ассистент модуль (устанавливается при запуске)
+        # Reference to AI assistant module (set on startup)
         self._ai_assistant = None
     
     def get_handlers(self) -> List[BaseHandler]:
-        """Возвращает обработчики"""
+        """Returns handlers"""
         return [
             MessageHandler(filters.VOICE, self.handle_voice_message),
         ]
     
     def set_ai_assistant(self, ai_assistant):
         """
-        Устанавливает ссылку на AI-ассистент для обработки транскрибированного текста.
+        Sets reference to AI assistant for processing transcribed text.
         """
         self._ai_assistant = ai_assistant
         logger.info("Voice module connected to AI Assistant")
@@ -52,16 +52,16 @@ class VoiceModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Обрабатывает голосовое сообщение"""
+        """Handles voice message"""
         voice = update.message.voice
         
-        await update.message.reply_text("🎤 Обрабатываю голосовое сообщение...")
+        await update.message.reply_text("🎤 Processing voice message...")
         
         try:
-            # Скачиваем голосовое сообщение
+            # Download voice message
             voice_file = await context.bot.get_file(voice.file_id)
             
-            # Создаём временный файл для сохранения
+            # Create temporary file for saving
             with tempfile.NamedTemporaryFile(
                 suffix=".ogg",
                 dir=self._voice_dir,
@@ -69,50 +69,50 @@ class VoiceModule(BaseModule):
             ) as tmp_file:
                 voice_path = tmp_file.name
             
-            # Скачиваем файл
+            # Download file
             await voice_file.download_to_drive(voice_path)
             logger.info(f"Voice file downloaded: {voice_path}")
             
-            # Транскрибируем
+            # Transcribe
             text = await self.transcribe_audio(voice_path)
             
-            # Удаляем временный файл
+            # Delete temporary file
             try:
                 os.unlink(voice_path)
             except:
                 pass
             
             if text:
-                # Если есть AI-ассистент, передаём ему текст для обработки
+                # If AI assistant exists, pass text for processing
                 if self._ai_assistant:
                     await self._ai_assistant.process_voice_text(update, context, text)
                 else:
-                    # Иначе просто показываем текст
+                    # Otherwise just show text
                     await update.message.reply_text(
-                        f"📝 Распознанный текст:\n\n{text}"
+                        f"📝 Recognized text:\n\n{text}"
                     )
             else:
                 await update.message.reply_text(
-                    "❌ Не удалось распознать речь. Попробуй ещё раз."
+                    "❌ Couldn't recognize speech. Try again."
                 )
                 
         except Exception as e:
             logger.error(f"Error processing voice message: {e}")
             await update.message.reply_text(
-                f"❌ Ошибка обработки: {str(e)}"
+                f"❌ Processing error: {str(e)}"
             )
     
     async def transcribe_audio(self, file_path: str) -> Optional[str]:
         """
-        Транскрибирует аудио файл в текст.
-        Использует OpenAI Whisper API.
+        Transcribes audio file to text.
+        Uses OpenAI Whisper API.
         """
         if OPENAI_API_KEY:
             text = await self._transcribe_openai(file_path)
             if text:
                 return text
         
-        # Fallback на локальный инструмент
+        # Fallback to local tool
         text = await self._transcribe_local(file_path)
         if text:
             return text
@@ -120,7 +120,7 @@ class VoiceModule(BaseModule):
         return None
     
     async def _transcribe_local(self, file_path: str) -> Optional[str]:
-        """Транскрибирует с помощью локального инструмента"""
+        """Transcribes using local tool"""
         import subprocess
         
         try:
@@ -150,7 +150,7 @@ class VoiceModule(BaseModule):
             return None
     
     async def _transcribe_openai(self, file_path: str) -> Optional[str]:
-        """Транскрибирует с помощью OpenAI Whisper API"""
+        """Transcribes using OpenAI Whisper API"""
         try:
             from openai import OpenAI
             
@@ -160,7 +160,7 @@ class VoiceModule(BaseModule):
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    language="ru"  # Русский язык
+                    language="en"  # English language
                 )
             
             text = transcript.text.strip()
@@ -176,13 +176,13 @@ class VoiceModule(BaseModule):
     
     def summarize_text(self, text: str, max_length: int = 200) -> str:
         """
-        Сокращает текст до указанной длины.
-        Простая реализация - обрезает по предложениям.
+        Shortens text to specified length.
+        Simple implementation - cuts by sentences.
         """
         if len(text) <= max_length:
             return text
         
-        # Разбиваем на предложения
+        # Split into sentences
         sentences = text.replace("!", ".").replace("?", ".").split(".")
         
         result = []
@@ -205,5 +205,5 @@ class VoiceModule(BaseModule):
             return text[:max_length] + "..."
 
 
-# Экземпляр модуля
+# Module instance
 voice_module = VoiceModule()

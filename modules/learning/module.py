@@ -1,6 +1,6 @@
 """
-Модуль планирования обучения с умными рекомендациями
-Логика 50/50: половина рекомендаций на отстающее, половина на последовательное продвижение
+Learning planning module with smart recommendations
+50/50 Logic: half recommendations for lagging content, half for sequential progression
 """
 import logging
 import json
@@ -18,36 +18,36 @@ from telegram.ext import (
 
 from modules.base import BaseModule
 from modules.notion.module import notion_module
-from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_RU
+from config.settings import MAX_VALUES, CONTENT_EMOJI, CONTENT_NAMES_EN
 
 logger = logging.getLogger(__name__)
 
-# Файл для хранения истории задач
+# File for storing task history
 HISTORY_FILE = "/tmp/task_history.json"
 
 
 class LearningModule(BaseModule):
     """
-    Модуль планирования обучения с умными рекомендациями.
+    Learning planning module with smart recommendations.
     
-    Логика 50/50:
-    - 50% рекомендаций: то, что отстаёт больше всего
-    - 50% рекомендаций: последовательное продвижение (разнообразие)
+    50/50 Logic:
+    - 50% recommendations: what's lagging the most
+    - 50% recommendations: sequential progression (variety)
     
-    История:
-    - Запоминает последние 7 дней выполненных задач
-    - Не повторяет одни и те же задачи подряд
+    History:
+    - Remembers last 7 days of completed tasks
+    - Doesn't repeat the same tasks consecutively
     """
     
     def __init__(self):
         super().__init__(
             name="learning",
-            description="Умные рекомендации для обучения на основе анализа прогресса"
+            description="Smart learning recommendations based on progress analysis"
         )
         self.history = self._load_history()
     
     def _load_history(self) -> Dict:
-        """Загружает историю задач из файла"""
+        """Loads task history from file"""
         try:
             if os.path.exists(HISTORY_FILE):
                 with open(HISTORY_FILE, 'r') as f:
@@ -57,9 +57,9 @@ class LearningModule(BaseModule):
         return {"tasks": [], "last_recommendation": None}
     
     def _save_history(self):
-        """Сохраняет историю задач в файл"""
+        """Saves task history to file"""
         try:
-            # Оставляем только последние 7 дней
+            # Keep only last 7 days
             cutoff = datetime.now().timestamp() - (7 * 24 * 60 * 60)
             self.history["tasks"] = [
                 t for t in self.history["tasks"] 
@@ -71,7 +71,7 @@ class LearningModule(BaseModule):
             logger.error(f"Error saving history: {e}")
     
     def _add_to_history(self, skill_name: str, content_type: str):
-        """Добавляет задачу в историю"""
+        """Adds task to history"""
         self.history["tasks"].append({
             "skill": skill_name,
             "content_type": content_type,
@@ -85,7 +85,7 @@ class LearningModule(BaseModule):
         self._save_history()
     
     def _was_recommended_recently(self, skill_name: str, content_type: str) -> bool:
-        """Проверяет, рекомендовали ли эту задачу недавно (последние 2 дня)"""
+        """Checks if this task was recommended recently (last 2 days)"""
         cutoff = datetime.now().timestamp() - (2 * 24 * 60 * 60)
         for task in self.history["tasks"]:
             if (task.get("skill") == skill_name and 
@@ -95,7 +95,7 @@ class LearningModule(BaseModule):
         return False
     
     def get_handlers(self) -> List[BaseHandler]:
-        """Возвращает обработчики команд"""
+        """Returns command handlers"""
         return [
             CommandHandler("today", self.today_command),
             CommandHandler("progress", self.progress_command),
@@ -106,7 +106,7 @@ class LearningModule(BaseModule):
     
     def _calculate_content_progress(self, skill: Dict) -> Dict[str, float]:
         """
-        Рассчитывает прогресс по каждому типу контента в процентах.
+        Calculates progress for each content type in percentage.
         """
         return {
             "Lectures": skill["lectures"] / MAX_VALUES["Lectures"] * 100,
@@ -117,7 +117,7 @@ class LearningModule(BaseModule):
         }
     
     def _calculate_overall_progress(self, skill: Dict) -> float:
-        """Рассчитывает общий прогресс навыка в процентах"""
+        """Calculates overall skill progress in percentage"""
         total_current = (
             skill["lectures"] + 
             skill["practice_hours"] + 
@@ -135,7 +135,7 @@ class LearningModule(BaseModule):
         return (total_current / total_max * 100) if total_max > 0 else 0
     
     def _find_weakest_content_type(self, skill: Dict) -> Tuple[str, float]:
-        """Находит тип контента с наименьшим прогрессом."""
+        """Finds content type with lowest progress."""
         progress = self._calculate_content_progress(skill)
         incomplete = {k: v for k, v in progress.items() if v < 100}
         
@@ -147,21 +147,21 @@ class LearningModule(BaseModule):
     
     def _find_next_sequential_content(self, skill: Dict) -> Optional[Tuple[str, float]]:
         """
-        Находит следующий тип контента для последовательного изучения.
-        Приоритет: Лекции -> Видео -> VC Лекции -> Фильмы -> Практика
+        Finds next content type for sequential learning.
+        Priority: Lectures -> Videos -> VC Lectures -> Films -> Practice
         """
         progress = self._calculate_content_progress(skill)
         
-        # Порядок для последовательного изучения
+        # Order for sequential learning
         sequence = ["Lectures", "Videos", "VC Lectures", "Films ", "Practice hours"]
         
         for content_type in sequence:
             if progress.get(content_type, 100) < 100:
-                # Проверяем, не рекомендовали ли недавно
+                # Check if not recommended recently
                 if not self._was_recommended_recently(skill["name"], content_type):
                     return content_type, progress[content_type]
         
-        # Если всё недавно рекомендовали, возвращаем первый незавершённый
+        # If all were recommended recently, return first incomplete
         for content_type in sequence:
             if progress.get(content_type, 100) < 100:
                 return content_type, progress[content_type]
@@ -170,11 +170,11 @@ class LearningModule(BaseModule):
     
     def _generate_recommendation(self, skill: Dict, mode: str = "weakest") -> Optional[Dict]:
         """
-        Генерирует рекомендацию для навыка.
+        Generates recommendation for a skill.
         
         Args:
-            skill: Данные навыка
-            mode: "weakest" - отстающее, "sequential" - последовательное
+            skill: Skill data
+            mode: "weakest" - lagging, "sequential" - sequential
         """
         if mode == "sequential":
             content_type, progress = self._find_next_sequential_content(skill)
@@ -195,12 +195,12 @@ class LearningModule(BaseModule):
         current = field_map[content_type]
         maximum = MAX_VALUES[content_type]
         emoji = CONTENT_EMOJI[content_type]
-        name_ru = CONTENT_NAMES_RU[content_type]
+        name_en = CONTENT_NAMES_EN[content_type]
         
         return {
             "skill_name": skill["name"],
             "content_type": content_type,
-            "content_name_ru": name_ru,
+            "content_name_en": name_en,
             "emoji": emoji,
             "current": current,
             "maximum": maximum,
@@ -210,26 +210,26 @@ class LearningModule(BaseModule):
     
     def _generate_smart_task(self, skills: List[Dict]) -> Optional[Dict]:
         """
-        Генерирует умную задачу с логикой 50/50.
-        50% - отстающее, 50% - последовательное продвижение.
+        Generates smart task with 50/50 logic.
+        50% - lagging, 50% - sequential progression.
         """
         if not skills:
             return None
         
-        # Определяем режим: 50/50
+        # Determine mode: 50/50
         use_sequential = random.random() < 0.5
         mode = "sequential" if use_sequential else "weakest"
         
-        # Собираем рекомендации для всех навыков
+        # Collect recommendations for all skills
         recommendations = []
         for skill in skills:
             rec = self._generate_recommendation(skill, mode)
             if rec:
-                # Проверяем, не рекомендовали ли недавно
+                # Check if not recommended recently
                 if not self._was_recommended_recently(rec["skill_name"], rec["content_type"]):
                     recommendations.append(rec)
         
-        # Если все недавно рекомендовали, пробуем другой режим
+        # If all were recommended recently, try other mode
         if not recommendations:
             alt_mode = "weakest" if use_sequential else "sequential"
             for skill in skills:
@@ -238,28 +238,28 @@ class LearningModule(BaseModule):
                     recommendations.append(rec)
         
         if not recommendations:
-            # Возвращаем любую незавершённую задачу
+            # Return any incomplete task
             for skill in skills:
                 rec = self._generate_recommendation(skill, "weakest")
                 if rec:
                     return rec
             return None
         
-        # Выбираем случайную рекомендацию для разнообразия
+        # Choose random recommendation for variety
         if mode == "sequential":
-            # Для последовательного - случайный выбор из навыков
+            # For sequential - random choice from skills
             best_rec = random.choice(recommendations)
         else:
-            # Для отстающего - выбираем с минимальным прогрессом
+            # For lagging - choose with minimum progress
             best_rec = min(recommendations, key=lambda x: x["progress_pct"])
         
-        # Добавляем в историю
+        # Add to history
         self._add_to_history(best_rec["skill_name"], best_rec["content_type"])
         
         return best_rec
     
     def _is_skill_completed(self, skill: Dict) -> bool:
-        """Проверяет, завершён ли навык полностью"""
+        """Checks if skill is fully completed"""
         return (
             skill["lectures"] >= MAX_VALUES["Lectures"] and
             skill["practice_hours"] >= MAX_VALUES["Practice hours"] and
@@ -269,48 +269,48 @@ class LearningModule(BaseModule):
         )
     
     def _get_incomplete_skills(self, skills: List[Dict]) -> List[Dict]:
-        """Возвращает только незавершённые навыки"""
+        """Returns only incomplete skills"""
         return [s for s in skills if not self._is_skill_completed(s)]
     
     def _progress_bar(self, current: float, maximum: float, length: int = 10) -> str:
-        """Генерирует красивый прогресс-бар с эмодзи"""
+        """Generates beautiful progress bar with emoji"""
         if maximum <= 0:
             return "⬜" * length
         ratio = min(current / maximum, 1.0)
         filled = int(ratio * length)
-        # Используем эмодзи которые хорошо отображаются в Telegram
+        # Use emoji that display well in Telegram
         return "🟩" * filled + "⬜" * (length - filled)
     
     def _format_skill_progress(self, skill: Dict) -> str:
-        """Форматирует прогресс по одному навыку - красивый формат"""
+        """Formats progress for one skill - beautiful format"""
         lines = []
         lines.append(f"📚 *{skill['name']}*\n")
         
-        # Рассчитываем общий прогресс
+        # Calculate overall progress
         overall_pct = self._calculate_overall_progress(skill)
-        lines.append(f"Общий прогресс: *{overall_pct:.0f}%*\n\n")
+        lines.append(f"Overall progress: *{overall_pct:.0f}%*\n\n")
         
-        # Находим отстающий тип контента
+        # Find lagging content type
         weakest, _ = self._find_weakest_content_type(skill)
         
-        # Прогресс для каждого типа контента
+        # Progress for each content type
         progress_items = [
-            ("Lectures", skill["lectures"], "📖", "Лекции"),
-            ("Practice hours", skill["practice_hours"], "💪", "Практика"),
-            ("Videos", skill["videos"], "🎬", "Видео"),
-            ("Films ", skill["films"], "🎥", "Фильмы"),
-            ("VC Lectures", skill["vc_lectures"], "🎤", "VC Лекции"),
+            ("Lectures", skill["lectures"], "📖", "Lectures"),
+            ("Practice hours", skill["practice_hours"], "💪", "Practice"),
+            ("Videos", skill["videos"], "🎬", "Videos"),
+            ("Films ", skill["films"], "🎥", "Films"),
+            ("VC Lectures", skill["vc_lectures"], "🎤", "VC Lectures"),
         ]
         
         for key, current, emoji, label in progress_items:
             maximum = MAX_VALUES[key]
             bar = self._progress_bar(current, maximum, 8)
             
-            # Отмечаем отстающий тип контента
+            # Mark lagging content type
             marker = " ⚠️" if key == weakest else ""
             
             if key == "Practice hours":
-                value_str = f"{current:.1f}/{maximum}ч"
+                value_str = f"{current:.1f}/{maximum}h"
             else:
                 value_str = f"{int(current)}/{maximum}"
             
@@ -324,18 +324,18 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Команда /today - показывает рекомендацию на сегодня"""
-        # Авто-синхронизация с Notion
+        """Command /today - shows today's recommendation"""
+        # Auto-sync with Notion
         await notion_module.refresh_skills_cache()
         skills = notion_module.get_skills()
         
         if not skills:
             await update.message.reply_text(
-                "📚 У тебя пока нет активных навыков.\n\n"
-                "Чтобы начать:\n"
-                "1. Открой Notion\n"
-                "2. Заполни первый прогресс-бар для навыка\n"
-                "3. Используй /sync для синхронизации"
+                "📚 You don't have any active skills yet.\n\n"
+                "To start:\n"
+                "1. Open Notion\n"
+                "2. Fill in the first progress bar for a skill\n"
+                "3. Use /sync to synchronize"
             )
             return
         
@@ -343,31 +343,31 @@ class LearningModule(BaseModule):
         
         if not incomplete:
             await update.message.reply_text(
-                "🎉 Поздравляю! Все активные навыки полностью изучены!"
+                "🎉 Congratulations! All active skills are fully learned!"
             )
             return
         
         task = self._generate_smart_task(incomplete)
         
         if not task:
-            await update.message.reply_text("✅ На сегодня всё готово!")
+            await update.message.reply_text("✅ All done for today!")
             return
         
-        # Формируем сообщение с прогресс-баром
+        # Format message with progress bar
         bar = self._progress_bar(task['current'], task['maximum'], 10)
         
-        # Определяем тип рекомендации
+        # Determine recommendation type
         if task.get('mode') == 'sequential':
-            reason = "_Следующий шаг в изучении навыка._"
+            reason = "_Next step in learning this skill._"
         else:
-            reason = "_Этот тип контента отстаёт больше всего._"
+            reason = "_This content type is lagging the most._"
         
-        text = f"🎯 **Рекомендация на сегодня**\n\n"
-        text += f"Навык: **{task['skill_name']}**\n\n"
-        text += f"{task['emoji']} {task['content_name_ru']}:\n"
+        text = f"🎯 **Today's Recommendation**\n\n"
+        text += f"Skill: **{task['skill_name']}**\n\n"
+        text += f"{task['emoji']} {task['content_name_en']}:\n"
         text += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
         text += f"{reason}\n\n"
-        text += f"После выполнения обнови прогресс в Notion и нажми /sync"
+        text += f"After completing, update progress in Notion and tap /sync"
         
         await update.message.reply_text(text, parse_mode='Markdown')
     
@@ -376,7 +376,7 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Команда /recommend - то же что /today"""
+        """Command /recommend - same as /today"""
         await self.today_command(update, context)
     
     async def skills_command(
@@ -384,8 +384,8 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Команда /skills - показывает список навыков с кнопками"""
-        # Авто-синхронизация с Notion
+        """Command /skills - shows list of skills with buttons"""
+        # Auto-sync with Notion
         await notion_module.refresh_skills_cache()
         await self._show_skills_menu(update, context)
     
@@ -395,16 +395,16 @@ class LearningModule(BaseModule):
         context: ContextTypes.DEFAULT_TYPE,
         edit_message: bool = False
     ) -> None:
-        """Показывает меню с кнопками навыков"""
+        """Shows menu with skill buttons"""
         skills = notion_module.get_skills()
         
         if not skills:
             text = (
-                "📚 У тебя пока нет активных навыков.\n\n"
-                "Чтобы начать:\n"
-                "1. Открой Notion\n"
-                "2. Заполни первый прогресс-бар для навыка\n"
-                "3. Используй /sync для синхронизации"
+                "📚 You don't have any active skills yet.\n\n"
+                "To start:\n"
+                "1. Open Notion\n"
+                "2. Fill in the first progress bar for a skill\n"
+                "3. Use /sync to synchronize"
             )
             if edit_message and update.callback_query:
                 await update.callback_query.edit_message_text(text)
@@ -412,14 +412,14 @@ class LearningModule(BaseModule):
                 await update.message.reply_text(text)
             return
         
-        # Сортируем навыки по прогрессу (от большего к меньшему)
+        # Sort skills by progress (highest to lowest)
         sorted_skills = sorted(
             skills,
             key=lambda s: self._calculate_overall_progress(s),
             reverse=True
         )
         
-        # Создаём кнопки для каждого навыка
+        # Create buttons for each skill
         keyboard = []
         for skill in sorted_skills:
             progress = self._calculate_overall_progress(skill)
@@ -428,7 +428,7 @@ class LearningModule(BaseModule):
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        text = "📊 **Выбери навык для просмотра:**"
+        text = "📊 **Select a skill to view:**"
         
         if edit_message and update.callback_query:
             await update.callback_query.edit_message_text(
@@ -448,7 +448,7 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Обрабатывает выбор навыка из меню"""
+        """Handles skill selection from menu"""
         query = update.callback_query
         await query.answer()
         
@@ -458,7 +458,7 @@ class LearningModule(BaseModule):
             await self._show_skills_menu(update, context, edit_message=True)
             return
         
-        # Извлекаем ID навыка
+        # Extract skill ID
         skill_id_prefix = data.replace("skill_", "")
         
         skills = notion_module.get_skills()
@@ -469,16 +469,16 @@ class LearningModule(BaseModule):
                 break
         
         if not skill:
-            await query.edit_message_text("❌ Навык не найден. Используй /sync")
+            await query.edit_message_text("❌ Skill not found. Use /sync")
             return
         
         text = self._format_skill_progress(skill)
         
         rec = self._generate_recommendation(skill)
         if rec:
-            text += f"\n💡 **Рекомендация:** посмотри {rec['content_name_ru']}"
+            text += f"\n💡 **Recommendation:** watch {rec['content_name_en']}"
         
-        keyboard = [[InlineKeyboardButton("⬅️ Назад к навыкам", callback_data="skill_back")]]
+        keyboard = [[InlineKeyboardButton("⬅️ Back to skills", callback_data="skill_back")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
@@ -492,27 +492,27 @@ class LearningModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Команда /progress - показывает прогресс по всем навыкам"""
-        # Авто-синхронизация с Notion
+        """Command /progress - shows progress for all skills"""
+        # Auto-sync with Notion
         await notion_module.refresh_skills_cache()
         skills = notion_module.get_skills()
         
         if not skills:
             await update.message.reply_text(
-                "📚 У тебя пока нет активных навыков.\n"
-                "Начни изучать навык в Notion, затем используй /sync"
+                "📚 You don't have any active skills yet.\n"
+                "Start learning a skill in Notion, then use /sync"
             )
             return
         
-        # Сортируем навыки по прогрессу (от большего к меньшему)
+        # Sort skills by progress (highest to lowest)
         sorted_skills = sorted(
             skills,
             key=lambda s: self._calculate_overall_progress(s),
             reverse=True
         )
         
-        text = f"📊 Прогресс по навыкам\n"
-        text += f"Активных: {len(skills)}\n\n"
+        text = f"📊 Skill Progress\n"
+        text += f"Active: {len(skills)}\n\n"
         
         for skill in sorted_skills:
             text += self._format_skill_progress(skill)
@@ -521,83 +521,83 @@ class LearningModule(BaseModule):
         await update.message.reply_text(text, parse_mode='Markdown')
     
     def generate_evening_task_message(self, skills: List[Dict]) -> str:
-        """Генерирует вечернее сообщение с задачей (20:00)"""
+        """Generates evening message with task (8:00 PM)"""
         if not skills:
             return (
-                "🌆 **Добрый вечер!**\n\n"
-                "У тебя пока нет активных навыков.\n"
-                "Начни изучать что-то новое в Notion!"
+                "🌆 **Good evening!**\n\n"
+                "You don't have any active skills yet.\n"
+                "Start learning something new in Notion!"
             )
         
         incomplete = self._get_incomplete_skills(skills)
         
         if not incomplete:
             return (
-                "🌆 **Добрый вечер!**\n\n"
-                "🎉 Все активные навыки изучены!\n"
-                "Время начать новый навык."
+                "🌆 **Good evening!**\n\n"
+                "🎉 All active skills are learned!\n"
+                "Time to start a new skill."
             )
         
         task = self._generate_smart_task(incomplete)
         
         if not task:
-            return "🌆 **Добрый вечер!**\n\n✅ На сегодня всё готово!"
+            return "🌆 **Good evening!**\n\n✅ All done for today!"
         
         bar = self._progress_bar(task['current'], task['maximum'], 10)
         
         if task.get('mode') == 'sequential':
-            reason = "Следующий шаг в изучении"
+            reason = "Next step in learning"
         else:
-            reason = "Этот тип контента отстаёт"
+            reason = "This content type is lagging"
         
-        message = f"🌆 **Добрый вечер!**\n\n"
-        message += f"🎯 Задача на вечер:\n\n"
-        message += f"Навык: **{task['skill_name']}**\n"
-        message += f"{task['emoji']} {task['content_name_ru']}:\n"
+        message = f"🌆 **Good evening!**\n\n"
+        message += f"🎯 Evening task:\n\n"
+        message += f"Skill: **{task['skill_name']}**\n"
+        message += f"{task['emoji']} {task['content_name_en']}:\n"
         message += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
         message += f"_{reason}_\n\n"
-        message += f"После выполнения обнови прогресс в Notion!"
+        message += f"After completing, update progress in Notion!"
         
         return message
     
     def generate_morning_message(self) -> str:
-        """Генерирует утреннее сообщение (09:00)"""
+        """Generates morning message (9:00 AM)"""
         return (
-            "🌅 **Доброе утро!**\n\n"
-            "Новый день - новые возможности для развития!\n\n"
-            "Используй /today чтобы получить рекомендацию на сегодня."
+            "🌅 **Good morning!**\n\n"
+            "New day - new opportunities for growth!\n\n"
+            "Use /today to get today's recommendation."
         )
     
     def generate_night_message(self, skills: List[Dict]) -> str:
-        """Генерирует вечернее сообщение с итогами (21:00)"""
+        """Generates night message with summary (9:00 PM)"""
         if not skills:
             return (
-                "🌙 **Спокойной ночи!**\n\n"
-                "Завтра начни изучать новый навык в Notion!"
+                "🌙 **Good night!**\n\n"
+                "Tomorrow start learning a new skill in Notion!"
             )
         
-        # Подсчитываем общий прогресс
+        # Calculate overall progress
         total_progress = sum(self._calculate_overall_progress(s) for s in skills) / len(skills)
         
-        message = f"🌙 **Спокойной ночи!**\n\n"
-        message += f"📊 Средний прогресс по навыкам: *{total_progress:.0f}%*\n\n"
+        message = f"🌙 **Good night!**\n\n"
+        message += f"📊 Average skill progress: *{total_progress:.0f}%*\n\n"
         
-        # Показываем топ-3 навыка
+        # Show top 3 skills
         sorted_skills = sorted(
             skills,
             key=lambda s: self._calculate_overall_progress(s),
             reverse=True
         )[:3]
         
-        message += "🏆 Топ навыки:\n"
+        message += "🏆 Top skills:\n"
         for i, skill in enumerate(sorted_skills, 1):
             progress = self._calculate_overall_progress(skill)
             message += f"{i}. {skill['name']} - {progress:.0f}%\n"
         
-        message += "\nОтдыхай и набирайся сил! 💪"
+        message += "\nRest well and recharge! 💪"
         
         return message
 
 
-# Экземпляр модуля
+# Module instance
 learning_module = LearningModule()

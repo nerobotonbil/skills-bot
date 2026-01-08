@@ -1,6 +1,6 @@
 """
-Модуль AI-ассистента на базе OpenAI GPT
-Обрабатывает текстовые и голосовые сообщения, помогает управлять ботом
+AI Assistant module based on OpenAI GPT
+Processes text and voice messages, helps manage the bot
 """
 import logging
 import os
@@ -18,88 +18,88 @@ logger = logging.getLogger(__name__)
 
 class AIAssistantModule(BaseModule):
     """
-    AI-ассистент для управления ботом через естественный язык.
-    Понимает голосовые и текстовые сообщения.
-    Может записывать идеи в Notion.
+    AI assistant for managing the bot through natural language.
+    Understands voice and text messages.
+    Can save ideas to Notion.
     """
     
     def __init__(self):
         super().__init__(
             name="ai_assistant",
-            description="AI-ассистент для управления ботом через естественный язык"
+            description="AI assistant for managing the bot through natural language"
         )
         self._client = None
         self._conversation_history: Dict[int, List[Dict]] = {}
         self._ideas_module = None
         
-        # Системный промпт для AI
-        self._system_prompt = """Ты - персональный AI-ассистент в Telegram-боте для обучения и саморазвития.
+        # System prompt for AI
+        self._system_prompt = """You are a personal AI assistant in a Telegram bot for learning and self-development.
 
-Твои возможности:
-1. Помогать пользователю отслеживать прогресс по навыкам
-2. Записывать благодарности в дневник
-3. Отвечать на вопросы об обучении
-4. Мотивировать и поддерживать
-5. ЗАПИСЫВАТЬ ИДЕИ в Notion - это очень важная функция!
+Your capabilities:
+1. Help user track progress on skills
+2. Record gratitude entries in journal
+3. Answer questions about learning
+4. Motivate and support
+5. SAVE IDEAS to Notion - this is a very important feature!
 
-Контекст бота:
-- Пользователь изучает 50 навыков, отслеживает прогресс в Notion
-- Типы контента: лекции, практика, видео, фильмы, VC лекции
-- Есть утренние (9:00) и вечерние (21:00) напоминания
-- Часовой пояс: Тбилиси (GMT+4)
+Bot context:
+- User is learning 50 skills, tracking progress in Notion
+- Content types: lectures, practice, videos, films, VC lectures
+- There are morning (9:00 AM) and evening (9:00 PM) reminders
+- Timezone: Tbilisi (GMT+4)
 
-ВАЖНО - Запись идей:
-Когда пользователь просит записать идею, заметку, мысль, или говорит что-то вроде:
-- "запиши идею..."
-- "сохрани заметку..."
-- "запомни это..."
-- "идея:..."
-- "заметка:..."
-- "хочу записать..."
-- "надо записать..."
-- "сохрани мысль..."
+IMPORTANT - Saving ideas:
+When user asks to save an idea, note, thought, or says something like:
+- "save idea..."
+- "save note..."
+- "remember this..."
+- "idea:..."
+- "note:..."
+- "want to write down..."
+- "need to save..."
+- "save thought..."
 
-Ты должен ОБЯЗАТЕЛЬНО вернуть JSON в формате:
-{"action": "save_idea", "idea": "полный текст идеи"}
+You MUST return JSON in format:
+{"action": "save_idea", "idea": "full text of the idea"}
 
-Правила обработки идей - ОЧЕНЬ ВАЖНО:
-1. НЕ СОКРАЩАЙ текст сильно! Сохраняй ВСЮ информацию и ВСЕ детали
-2. Только исправь грамматику и убери слова-паразиты (типа, ну, короче, вот)
-3. Если в сообщении несколько идей - сохрани ВСЕ идеи
-4. Структурируй текст для читаемости, но НЕ УДАЛЯЙ содержание
-5. Идея должна быть полной и понятной при прочтении позже
+Rules for processing ideas - VERY IMPORTANT:
+1. DON'T shorten text too much! Keep ALL information and ALL details
+2. Only fix grammar and remove filler words (like, um, you know)
+3. If message contains multiple ideas - save ALL ideas
+4. Structure text for readability, but DON'T DELETE content
+5. Idea should be complete and understandable when read later
 
-Пример:
-Пользователь: "запиши идею, я тут подумал что было бы круто сделать приложение которое помогает людям находить интересные места в городе типа как гугл карты но только для локальных секретных мест и ещё можно добавить отзывы от местных"
-Ответ: {"action": "save_idea", "idea": "Идея приложения: помогает людям находить интересные места в городе, как Google Maps, но только для локальных секретных мест. Дополнительно: добавить отзывы от местных жителей."}
+Example:
+User: "save idea, I was thinking it would be cool to make an app that helps people find interesting places in the city like google maps but only for local secret spots and also you can add reviews from locals"
+Response: {"action": "save_idea", "idea": "App idea: helps people find interesting places in the city, like Google Maps, but only for local secret spots. Additional: add reviews from local residents."}
 
-Пример 2 (несколько идей):
-Пользователь: "запиши заметку - хочу улучшить систему общения с людьми, подумать какой софт для этого сделать, и ещё идея про высадку пингвинов на Марс"
-Ответ: {"action": "save_idea", "idea": "1. Улучшить систему общения с людьми - продумать какой софт можно для этого разработать. 2. Идея про высадку пингвинов на Марс (обдумать концепцию)."}
+Example 2 (multiple ideas):
+User: "save note - want to improve communication system with people, think about what software to make for this, and also idea about landing penguins on Mars"
+Response: {"action": "save_idea", "idea": "1. Improve communication system with people - think about what software can be developed for this. 2. Idea about landing penguins on Mars (think through the concept)."}
 
-Главное правило: ЛУЧШЕ СОХРАНИТЬ БОЛЬШЕ ИНФОРМАЦИИ, чем потерять важные детали!
+Main rule: BETTER TO SAVE MORE INFORMATION than lose important details!
 
-Команды бота (можешь подсказывать):
-- /today - цель на сегодня
-- /progress - прогресс по навыкам
-- /gratitude - записать благодарность
-- /sync - синхронизация с Notion
+Bot commands (you can suggest):
+- /today - today's goal
+- /progress - skills progress
+- /gratitude - record gratitude
+- /sync - sync with Notion
 
-Стиль общения:
-- Дружелюбный, но не навязчивый
-- Краткий и по делу
-- Используй эмодзи умеренно
-- Отвечай на русском языке
+Communication style:
+- Friendly but not pushy
+- Brief and to the point
+- Use emojis moderately
+- Respond in English
 
-Если пользователь говорит что-то связанное с благодарностью - предложи записать через /gratitude.
-Если спрашивает о прогрессе - предложи /progress.
-Если хочет записать идею - ОБЯЗАТЕЛЬНО верни JSON с action: save_idea."""
+If user says something related to gratitude - suggest recording via /gratitude.
+If asking about progress - suggest /progress.
+If wants to save an idea - MUST return JSON with action: save_idea."""
 
-        # Инициализируем клиент сразу
+        # Initialize client immediately
         self._init_client()
 
     def _init_client(self):
-        """Инициализация OpenAI клиента"""
+        """Initialize OpenAI client"""
         api_key = os.getenv("OPENAI_API_KEY", "")
         if api_key:
             try:
@@ -114,14 +114,14 @@ class AIAssistantModule(BaseModule):
             self._client = None
 
     def set_ideas_module(self, ideas_module):
-        """Устанавливает модуль идей для записи в Notion"""
+        """Sets ideas module for saving to Notion"""
         self._ideas_module = ideas_module
         logger.info("Ideas module connected to AI Assistant")
 
     def get_handlers(self) -> List[BaseHandler]:
-        """Возвращает обработчики для текстовых сообщений"""
+        """Returns handlers for text messages"""
         return [
-            # Обрабатываем текстовые сообщения, которые не являются командами
+            # Handle text messages that are not commands
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
                 self.handle_text_message
@@ -129,20 +129,20 @@ class AIAssistantModule(BaseModule):
         ]
     
     async def startup(self) -> None:
-        """Инициализация при запуске - повторная попытка если не удалось раньше"""
+        """Initialization on startup - retry if failed earlier"""
         if not self._client:
             self._init_client()
     
     async def _process_ai_response(self, response: str, update: Update) -> str:
         """
-        Обрабатывает ответ AI и выполняет действия если нужно.
-        Возвращает текст для отправки пользователю.
+        Processes AI response and executes actions if needed.
+        Returns text to send to user.
         """
-        # Проверяем, содержит ли ответ JSON с действием
+        # Check if response contains JSON with action
         try:
-            # Пробуем найти JSON в ответе
+            # Try to find JSON in response
             if '{"action"' in response:
-                # Извлекаем JSON
+                # Extract JSON
                 start = response.find('{"action"')
                 end = response.find('}', start) + 1
                 json_str = response[start:end]
@@ -152,7 +152,7 @@ class AIAssistantModule(BaseModule):
                 if data.get("action") == "save_idea" and data.get("idea"):
                     idea_text = data["idea"]
                     
-                    # Сохраняем идею в Notion
+                    # Save idea to Notion
                     if self._ideas_module:
                         result = await self._ideas_module.save_idea(
                             idea_text,
@@ -160,84 +160,84 @@ class AIAssistantModule(BaseModule):
                         )
                         
                         if result["success"]:
-                            return f"✅ Идея сохранена в Notion!\n\n📝 {idea_text}"
+                            return f"✅ Idea saved to Notion!\n\n📝 {idea_text}"
                         else:
-                            return f"❌ Не удалось сохранить: {result['message']}\n\nИдея: {idea_text}"
+                            return f"❌ Failed to save: {result['message']}\n\nIdea: {idea_text}"
                     else:
-                        return f"❌ Модуль идей не подключен.\n\nИдея: {idea_text}"
+                        return f"❌ Ideas module not connected.\n\nIdea: {idea_text}"
         except json.JSONDecodeError:
             pass
         except Exception as e:
             logger.error(f"Error processing AI action: {e}")
         
-        # Если нет действия - возвращаем ответ как есть
-        # Убираем JSON из ответа если он там есть
+        # If no action - return response as is
+        # Remove JSON from response if present
         if '{"action"' in response:
             response = response[:response.find('{"action"')].strip()
         
-        return response if response else "✅ Готово!"
+        return response if response else "✅ Done!"
 
     async def handle_text_message(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Обрабатывает текстовое сообщение через AI"""
-        # Пробуем инициализировать если ещё не инициализирован
+        """Handles text message through AI"""
+        # Try to initialize if not initialized yet
         if not self._client:
             self._init_client()
         
         if not self._client:
             await update.message.reply_text(
-                "❌ AI-ассистент не настроен. Проверьте OPENAI_API_KEY."
+                "❌ AI assistant not configured. Check OPENAI_API_KEY."
             )
             return
         
         user_id = update.effective_user.id
         user_message = update.message.text
         
-        # Получаем или создаём историю разговора
+        # Get or create conversation history
         if user_id not in self._conversation_history:
             self._conversation_history[user_id] = []
         
         history = self._conversation_history[user_id]
         
-        # Добавляем сообщение пользователя
+        # Add user message
         history.append({"role": "user", "content": user_message})
         
-        # Ограничиваем историю последними 10 сообщениями
+        # Limit history to last 10 messages
         if len(history) > 20:
             history = history[-20:]
             self._conversation_history[user_id] = history
         
         try:
-            # Отправляем "печатает..."
+            # Send "typing..."
             await context.bot.send_chat_action(
                 chat_id=update.effective_chat.id,
                 action="typing"
             )
             
-            # Получаем ответ от AI
+            # Get AI response
             response = await self._get_ai_response(history)
             
             if response:
-                # Обрабатываем ответ (возможно с действием)
+                # Process response (possibly with action)
                 final_response = await self._process_ai_response(response, update)
                 
-                # Добавляем ответ в историю
+                # Add response to history
                 history.append({"role": "assistant", "content": final_response})
                 
-                # Отправляем ответ
+                # Send response
                 await update.message.reply_text(final_response)
             else:
                 await update.message.reply_text(
-                    "🤔 Не удалось получить ответ. Попробуй ещё раз."
+                    "🤔 Couldn't get a response. Try again."
                 )
                 
         except Exception as e:
             logger.error(f"Error in AI response: {e}")
             await update.message.reply_text(
-                f"❌ Ошибка AI: {str(e)}"
+                f"❌ AI Error: {str(e)}"
             )
     
     async def process_voice_text(
@@ -247,33 +247,33 @@ class AIAssistantModule(BaseModule):
         transcribed_text: str
     ) -> None:
         """
-        Обрабатывает транскрибированный текст из голосового сообщения.
-        Вызывается из voice модуля.
+        Processes transcribed text from voice message.
+        Called from voice module.
         """
-        # Пробуем инициализировать если ещё не инициализирован
+        # Try to initialize if not initialized yet
         if not self._client:
             self._init_client()
         
         if not self._client:
             await update.message.reply_text(
-                f"📝 Распознанный текст:\n\n{transcribed_text}\n\n"
-                "❌ AI-ассистент не настроен для обработки."
+                f"📝 Recognized text:\n\n{transcribed_text}\n\n"
+                "❌ AI assistant not configured for processing."
             )
             return
         
         user_id = update.effective_user.id
         
-        # Получаем или создаём историю разговора
+        # Get or create conversation history
         if user_id not in self._conversation_history:
             self._conversation_history[user_id] = []
         
         history = self._conversation_history[user_id]
         
-        # Добавляем контекст что это голосовое сообщение
-        voice_context = f"[Голосовое сообщение]: {transcribed_text}"
+        # Add context that this is a voice message
+        voice_context = f"[Voice message]: {transcribed_text}"
         history.append({"role": "user", "content": voice_context})
         
-        # Ограничиваем историю
+        # Limit history
         if len(history) > 20:
             history = history[-20:]
             self._conversation_history[user_id] = history
@@ -287,31 +287,31 @@ class AIAssistantModule(BaseModule):
             response = await self._get_ai_response(history)
             
             if response:
-                # Обрабатываем ответ (возможно с действием)
+                # Process response (possibly with action)
                 final_response = await self._process_ai_response(response, update)
                 
                 history.append({"role": "assistant", "content": final_response})
                 
-                # Показываем распознанный текст и ответ AI
+                # Show recognized text and AI response
                 await update.message.reply_text(
-                    f"🎤 *Распознано:*\n_{transcribed_text}_\n\n"
-                    f"🤖 *Ответ:*\n{final_response}",
+                    f"🎤 *Recognized:*\n_{transcribed_text}_\n\n"
+                    f"🤖 *Response:*\n{final_response}",
                     parse_mode="Markdown"
                 )
             else:
                 await update.message.reply_text(
-                    f"📝 Распознанный текст:\n\n{transcribed_text}"
+                    f"📝 Recognized text:\n\n{transcribed_text}"
                 )
                 
         except Exception as e:
             logger.error(f"Error processing voice with AI: {e}")
             await update.message.reply_text(
-                f"📝 Распознанный текст:\n\n{transcribed_text}\n\n"
-                f"❌ Ошибка AI: {str(e)}"
+                f"📝 Recognized text:\n\n{transcribed_text}\n\n"
+                f"❌ AI Error: {str(e)}"
             )
     
     async def _get_ai_response(self, history: List[Dict]) -> Optional[str]:
-        """Получает ответ от OpenAI API"""
+        """Gets response from OpenAI API"""
         try:
             messages = [
                 {"role": "system", "content": self._system_prompt}
@@ -331,10 +331,10 @@ class AIAssistantModule(BaseModule):
             return None
     
     def clear_history(self, user_id: int) -> None:
-        """Очищает историю разговора для пользователя"""
+        """Clears conversation history for user"""
         if user_id in self._conversation_history:
             self._conversation_history[user_id] = []
 
 
-# Экземпляр модуля
+# Module instance
 ai_assistant_module = AIAssistantModule()
