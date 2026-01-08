@@ -24,7 +24,7 @@ class IdeasModule(BaseModule):
             name="ideas",
             description="Запись идей и заметок в Notion"
         )
-        self.notion_token = os.getenv("NOTION_TOKEN")
+        self.notion_token = os.getenv("NOTION_API_TOKEN")
         self.database_id = "2e28db7c-9367-80cf-b223-000b195b9453"  # Data Source ID
         self.notion_api_url = "https://api.notion.com/v1/pages"
         
