@@ -113,8 +113,6 @@ class ProductivityModule(BaseModule):
         return [
             CommandHandler("streak", self.streak_command),
             CommandHandler("freeze", self.freeze_command),
-            CommandHandler("deepblock", self.deep_block_command),
-            CommandHandler("interleave", self.interleave_command),
             CallbackQueryHandler(self.handle_practice_complete, pattern="^practice_done_"),
             CallbackQueryHandler(self.handle_freeze_confirm, pattern="^freeze_"),
         ]

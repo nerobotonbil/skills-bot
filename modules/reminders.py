@@ -31,7 +31,7 @@ class ReminderService:
     Расписание:
     - 09:00 — утренняя благодарность
     - 18:00 — защита серии (loss aversion)
-    - 20:00 — вечерняя задача (блок глубокой практики)
+    - 20:00 — вечерняя задача
     - 23:00 — вечерняя благодарность
     - Пятница 19:00 — недельный обзор с AI
     """
@@ -165,69 +165,15 @@ class ReminderService:
     async def send_evening_task(self) -> None:
         """
         Отправляет вечернюю задачу (20:00).
-        Теперь включает блок глубокой практики с чередованием.
+        Простая рекомендация на основе прогресса.
         """
         if not self._app or not self._chat_id:
             logger.warning("Не могу отправить вечернюю задачу: app или chat_id не установлены")
             return
         
         try:
-            # Импортируем здесь чтобы избежать циклических импортов
-            from modules.productivity.module import productivity_module
-            
             skills = await notion_module.refresh_skills_cache()
-            
-            # Генерируем блок глубокой практики
-            block = productivity_module.generate_deep_practice_block(skills)
-            
-            if block.get("completed"):
-                message = (
-                    "🎉 **Все навыки завершены!**\n\n"
-                    "Ты достиг невероятного результата. Поздравляю!"
-                )
-            elif block.get("segments"):
-                # Формируем сообщение блока глубокой практики
-                message = (
-                    "🧠 **Вечерний блок глубокой практики**\n\n"
-                    "_Структурированная сессия для максимального усвоения._\n\n"
-                )
-                
-                from config.settings import CATEGORY_EMOJI, CONTENT_EMOJI, CONTENT_NAMES_EN
-                
-                # Русские названия типов контента
-                content_names_ru = {
-                    "Lectures": "лекция",
-                    "Practice hours": "практика (1 час)",
-                    "Videos": "видео",
-                    "Films ": "фильм",
-                    "VC Lectures": "VC лекция"
-                }
-                
-                for segment in block["segments"]:
-                    emoji = CATEGORY_EMOJI.get(segment["category"], "📚")
-                    content_emoji = CONTENT_EMOJI.get(segment["content_type"], "📖")
-                    content_name = content_names_ru.get(segment["content_type"], segment["content_type"])
-                    
-                    focus_label = {
-                        "deep": "🎯 Глубокий фокус",
-                        "practice": "💪 Практика",
-                        "review": "🔄 Повторение"
-                    }.get(segment["focus"], "📖")
-                    
-                    message += (
-                        f"**{segment['order']}. {segment['skill']}** {emoji}\n"
-                        f"   {focus_label} — {segment['duration_mins']} мин\n"
-                        f"   {content_emoji} {content_name}\n\n"
-                    )
-                
-                message += (
-                    f"⏱ **Общее время:** {block['total_duration']} минут\n\n"
-                    "💡 _Совет: Убери отвлечения и включи таймер!_\n\n"
-                    "Используй /deepblock для нового блока или /interleave для микса навыков."
-                )
-            else:
-                # Запасной вариант — обычная рекомендация
-                message = learning_module.generate_evening_task_message(skills)
+            message = learning_module.generate_evening_task_message(skills)
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -235,21 +181,10 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            logger.info("Вечерняя задача отправлена с блоком глубокой практики")
+            logger.info("Вечерняя задача отправлена")
             
         except Exception as e:
             logger.error(f"Ошибка отправки вечерней задачи: {e}")
-            # Запасной вариант
-            try:
-                skills = await notion_module.refresh_skills_cache()
-                message = learning_module.generate_evening_task_message(skills)
-                await self._app.bot.send_message(
-                    chat_id=self._chat_id,
-                    text=message,
-                    parse_mode='Markdown'
-                )
-            except Exception as e2:
-                logger.error(f"Запасной вариант тоже не сработал: {e2}")
     
     async def send_evening_gratitude(self) -> None:
         """
