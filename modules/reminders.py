@@ -169,6 +169,7 @@ class ReminderService:
     async def send_streak_reminder(self) -> None:
         """
         Отправляет напоминание о защите серии (18:00).
+        Сначала синхронизирует данные с Notion, затем отправляет напоминание.
         Использует психологию неприятия потерь для мотивации.
         Отправляется только если серия под угрозой.
         """
@@ -177,6 +178,11 @@ class ReminderService:
             return
         
         try:
+            # Синхронизация с Notion перед проверкой серии
+            logger.info("Запускаю синхронизацию с Notion перед проверкой серии...")
+            await notion_module.refresh_skills_cache()
+            logger.info("Синхронизация завершена")
+            
             # Импортируем здесь чтобы избежать циклических импортов
             from modules.productivity.module import productivity_module
             
