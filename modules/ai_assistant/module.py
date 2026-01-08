@@ -3,6 +3,7 @@
 Обрабатывает текстовые и голосовые сообщения, помогает управлять ботом
 """
 import logging
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -10,7 +11,6 @@ from telegram import Update
 from telegram.ext import MessageHandler, ContextTypes, BaseHandler, filters
 
 from modules.base import BaseModule
-from config.settings import OPENAI_API_KEY, TIMEZONE
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,24 @@ class AIAssistantModule(BaseModule):
 Если спрашивает о прогрессе - предложи /progress.
 Если хочет что-то отметить как выполненное - объясни как это сделать в Notion или через бота."""
 
+        # Инициализируем клиент сразу
+        self._init_client()
+
+    def _init_client(self):
+        """Инициализация OpenAI клиента"""
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        if api_key:
+            try:
+                from openai import OpenAI
+                self._client = OpenAI(api_key=api_key)
+                logger.info("AI Assistant initialized with OpenAI")
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI client: {e}")
+                self._client = None
+        else:
+            logger.warning("OPENAI_API_KEY not set, AI Assistant disabled")
+            self._client = None
+
     def get_handlers(self) -> List[BaseHandler]:
         """Возвращает обработчики для текстовых сообщений"""
         return [
@@ -71,16 +89,9 @@ class AIAssistantModule(BaseModule):
         ]
     
     async def startup(self) -> None:
-        """Инициализация при запуске"""
-        if OPENAI_API_KEY:
-            try:
-                from openai import OpenAI
-                self._client = OpenAI(api_key=OPENAI_API_KEY)
-                logger.info("AI Assistant initialized with OpenAI")
-            except Exception as e:
-                logger.error(f"Failed to initialize OpenAI client: {e}")
-        else:
-            logger.warning("OPENAI_API_KEY not set, AI Assistant disabled")
+        """Инициализация при запуске - повторная попытка если не удалось раньше"""
+        if not self._client:
+            self._init_client()
     
     async def handle_text_message(
         self,
@@ -88,6 +99,10 @@ class AIAssistantModule(BaseModule):
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Обрабатывает текстовое сообщение через AI"""
+        # Пробуем инициализировать если ещё не инициализирован
+        if not self._client:
+            self._init_client()
+        
         if not self._client:
             await update.message.reply_text(
                 "❌ AI-ассистент не настроен. Проверьте OPENAI_API_KEY."
@@ -148,6 +163,10 @@ class AIAssistantModule(BaseModule):
         Обрабатывает транскрибированный текст из голосового сообщения.
         Вызывается из voice модуля.
         """
+        # Пробуем инициализировать если ещё не инициализирован
+        if not self._client:
+            self._init_client()
+        
         if not self._client:
             await update.message.reply_text(
                 f"📝 Распознанный текст:\n\n{transcribed_text}\n\n"
