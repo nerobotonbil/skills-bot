@@ -1,7 +1,9 @@
 """
-Gratitude journal module
+Gratitude journal module with Notion integration
 """
 import logging
+import os
+import httpx
 from typing import List, Dict, Optional
 from datetime import datetime, date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -16,9 +18,7 @@ from telegram.ext import (
 )
 
 from modules.base import BaseModule
-from modules.notion.client import notion_client
-from modules.voice.module import voice_module
-from config.settings import NOTION_API_TOKEN
+from config.settings import NOTION_GRATITUDE_DATABASE_ID
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ WAITING_VOICE = 2
 
 class GratitudeModule(BaseModule):
     """
-    Gratitude journal module.
+    Gratitude journal module with Notion integration.
     Allows recording gratitude in the morning and evening,
     supports voice messages.
     """
@@ -37,10 +37,11 @@ class GratitudeModule(BaseModule):
     def __init__(self):
         super().__init__(
             name="gratitude",
-            description="Gratitude journal with voice message support"
+            description="Gratitude journal with Notion sync"
         )
-        self._gratitude_db_id: Optional[str] = None
+        self._gratitude_db_id = NOTION_GRATITUDE_DATABASE_ID
         self._waiting_for_gratitude: Dict[int, str] = {}  # chat_id -> time_of_day
+        logger.info(f"Gratitude module initialized with DB: {self._gratitude_db_id}")
     
     def get_handlers(self) -> List[BaseHandler]:
         """Returns command handlers"""
@@ -53,20 +54,6 @@ class GratitudeModule(BaseModule):
                 self.handle_text_gratitude
             ),
         ]
-    
-    async def on_startup(self) -> None:
-        """Initialization on startup"""
-        # Check/create gratitude database
-        await self._ensure_gratitude_database()
-        
-        # Set callback for voice messages
-        voice_module.set_transcription_callback(self.handle_voice_gratitude)
-    
-    async def _ensure_gratitude_database(self) -> None:
-        """Checks for gratitude database, creates if needed"""
-        # For now using simple in-memory/file storage
-        # In the future can create database in Notion
-        logger.info("Gratitude module initialized")
     
     async def gratitude_command(
         self,
@@ -149,18 +136,11 @@ class GratitudeModule(BaseModule):
         
         # Check if we're waiting for gratitude
         if chat_id not in self._waiting_for_gratitude:
-            # Just show recognized text
-            await update.message.reply_text(
-                f"📝 Recognized text:\n\n{text}"
-            )
             return
         
         time_of_day = self._waiting_for_gratitude.pop(chat_id)
         
-        # Summarize text if needed
-        summary = voice_module.summarize_text(text, max_length=500)
-        
-        await self._save_gratitude(update, context, summary, time_of_day, original=text)
+        await self._save_gratitude(update, context, text, time_of_day, original=text)
     
     async def _save_gratitude(
         self,
@@ -170,12 +150,8 @@ class GratitudeModule(BaseModule):
         time_of_day: str,
         original: Optional[str] = None
     ) -> None:
-        """Saves gratitude entry"""
+        """Saves gratitude entry to Notion"""
         today = date.today().isoformat()
-        
-        # Save to bot context
-        if 'gratitude_entries' not in context.bot_data:
-            context.bot_data['gratitude_entries'] = []
         
         entry = {
             "date": today,
@@ -184,9 +160,8 @@ class GratitudeModule(BaseModule):
             "original_text": original,
             "timestamp": datetime.now().isoformat()
         }
-        context.bot_data['gratitude_entries'].append(entry)
         
-        # Try to save to Notion
+        # Save to Notion
         saved_to_notion = await self._save_to_notion(entry)
         
         # Format response
@@ -194,52 +169,73 @@ class GratitudeModule(BaseModule):
         response = f"{emoji} **Gratitude saved!**\n\n"
         response += f"_{text}_\n\n"
         
-        if original and original != text:
-            response += f"📝 Full text saved\n"
-        
         if saved_to_notion:
             response += "✅ Synced to Notion"
         else:
-            response += "💾 Saved locally"
+            response += "⚠️ Couldn't sync to Notion"
         
         await update.message.reply_text(response, parse_mode='Markdown')
     
     async def _save_to_notion(self, entry: Dict) -> bool:
-        """Saves entry to Notion"""
-        if not self._gratitude_db_id:
-            # No database yet - save only locally
+        """Saves entry to Notion database"""
+        token = os.getenv("NOTION_API_TOKEN")
+        
+        if not token or not self._gratitude_db_id:
+            logger.warning("Notion token or database ID not configured")
             return False
         
-        try:
-            properties = {
-                "Date": {
-                    "date": {"start": entry["date"]}
-                },
-                "Time": {
-                    "select": {"name": entry["time_of_day"].capitalize()}
-                },
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        }
+        
+        # Map time_of_day to Select options
+        time_label = "Morning" if entry["time_of_day"] == "morning" else "Evening"
+        
+        data = {
+            "parent": {
+                "database_id": self._gratitude_db_id
+            },
+            "properties": {
                 "Gratitude": {
-                    "title": [{"text": {"content": entry["text"][:100]}}]
+                    "title": [
+                        {
+                            "text": {
+                                "content": entry["text"][:2000]
+                            }
+                        }
+                    ]
+                },
+                "Date": {
+                    "date": {
+                        "start": entry["date"]
+                    }
+                },
+                "Select": {
+                    "select": {
+                        "name": time_label
+                    }
                 }
             }
-            
-            children = []
-            if entry.get("original_text"):
-                children.append({
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"text": {"content": entry["original_text"]}}]
-                    }
-                })
-            
-            await notion_client.create_page(
-                self._gratitude_db_id,
-                properties,
-                children if children else None
-            )
-            return True
-            
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.notion.com/v1/pages",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Gratitude saved to Notion: {entry['text'][:50]}...")
+                    return True
+                else:
+                    logger.error(f"Notion API error: {response.status_code} - {response.text}")
+                    return False
+                    
         except Exception as e:
             logger.error(f"Failed to save to Notion: {e}")
             return False
@@ -249,8 +245,8 @@ class GratitudeModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Command /review - review gratitude entries"""
-        entries = context.bot_data.get('gratitude_entries', [])
+        """Command /review - review gratitude entries from Notion"""
+        entries = await self._get_recent_entries()
         
         if not entries:
             await update.message.reply_text(
@@ -259,19 +255,86 @@ class GratitudeModule(BaseModule):
             )
             return
         
-        # Show last 5 entries
-        recent = entries[-5:]
-        
         message = "📔 **Recent Gratitude Entries**\n\n"
         
-        for entry in reversed(recent):
-            emoji = "🌅" if entry["time_of_day"] == "morning" else "🌙"
+        for entry in entries[:5]:
+            emoji = "🌅" if entry.get("time") == "Morning" else "🌙"
             message += f"{emoji} **{entry['date']}**\n"
-            message += f"_{entry['text'][:100]}{'...' if len(entry['text']) > 100 else ''}_\n\n"
+            text = entry.get('text', '')
+            message += f"_{text[:100]}{'...' if len(text) > 100 else ''}_\n\n"
         
         message += f"Total entries: {len(entries)}"
         
         await update.message.reply_text(message, parse_mode='Markdown')
+    
+    async def _get_recent_entries(self) -> List[Dict]:
+        """Gets recent entries from Notion"""
+        token = os.getenv("NOTION_API_TOKEN")
+        
+        if not token or not self._gratitude_db_id:
+            return []
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        }
+        
+        data = {
+            "sorts": [
+                {
+                    "property": "Date",
+                    "direction": "descending"
+                }
+            ],
+            "page_size": 10
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.notion.com/v1/databases/{self._gratitude_db_id}/query",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    results = response.json().get("results", [])
+                    entries = []
+                    
+                    for page in results:
+                        props = page.get("properties", {})
+                        
+                        # Get title
+                        title_prop = props.get("Gratitude", {})
+                        title_arr = title_prop.get("title", [])
+                        text = title_arr[0].get("plain_text", "") if title_arr else ""
+                        
+                        # Get date
+                        date_prop = props.get("Date", {})
+                        date_obj = date_prop.get("date", {})
+                        date_str = date_obj.get("start", "") if date_obj else ""
+                        
+                        # Get time of day
+                        select_prop = props.get("Select", {})
+                        select_obj = select_prop.get("select", {})
+                        time_str = select_obj.get("name", "") if select_obj else ""
+                        
+                        entries.append({
+                            "text": text,
+                            "date": date_str,
+                            "time": time_str
+                        })
+                    
+                    return entries
+                else:
+                    logger.error(f"Notion query error: {response.status_code}")
+                    return []
+                    
+        except Exception as e:
+            logger.error(f"Failed to get entries from Notion: {e}")
+            return []
     
     def get_morning_prompt(self) -> str:
         """Returns morning prompt for gratitude"""

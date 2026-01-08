@@ -17,8 +17,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 NOTION_SKILLS_DATABASE_ID = os.getenv("NOTION_SKILLS_DATABASE_ID", "efc48aa99cde4bcb8fab8e3b0ef625c0")
 NOTION_SKILLS_DATA_SOURCE = os.getenv("NOTION_SKILLS_DATA_SOURCE", "collection://1f4e8789-6dd5-400f-b538-ce1c1bcc6487")
 
-# Notion Gratitude Journal (will be created automatically)
-NOTION_GRATITUDE_DATABASE_ID = os.getenv("NOTION_GRATITUDE_DATABASE_ID", None)
+# Notion Gratitude Journal
+NOTION_GRATITUDE_DATABASE_ID = os.getenv("NOTION_GRATITUDE_DATABASE_ID", "2e28db7c93678010a214e47603e2d27e")
 
 # Maximum values for progress bars
 MAX_VALUES = {
