@@ -95,7 +95,13 @@ class GratitudeModule(BaseModule):
         self._gratitude_db_id = NOTION_GRATITUDE_DATABASE_ID
         self._waiting_for_gratitude: Dict[int, str] = {}
         self._openai_client = None
+        self._ai_assistant = None  # Ссылка на AI-ассистент
         logger.info(f"Gratitude module initialized with DB: {self._gratitude_db_id}")
+    
+    def set_ai_assistant(self, ai_assistant):
+        """Устанавливает ссылку на AI-ассистент для передачи не-благодарностей"""
+        self._ai_assistant = ai_assistant
+        logger.info("AI assistant connected to Gratitude module")
     
     def _get_openai_client(self):
         """Lazy initialization of OpenAI client"""
@@ -233,10 +239,11 @@ class GratitudeModule(BaseModule):
             # Это не благодарность - сбрасываем режим ожидания
             self._waiting_for_gratitude.pop(chat_id, None)
             await update.message.reply_text(
-                "Это была не благодарность. "
-                "Передаю AI-ассистенту..."
+                "Это была не благодарность. Передаю AI-ассистенту..."
             )
-            # Не обрабатываем здесь - пусть AI-ассистент обработает
+            # Передаём сообщение AI-ассистенту напрямую
+            if self._ai_assistant:
+                await self._ai_assistant.handle_text_message(update, context)
             return
         
         time_of_day = self._waiting_for_gratitude.pop(chat_id)
@@ -259,9 +266,11 @@ class GratitudeModule(BaseModule):
             # Это не благодарность - сбрасываем режим ожидания
             self._waiting_for_gratitude.pop(chat_id, None)
             await update.message.reply_text(
-                "Это была не благодарность. "
-                "Передаю AI-ассистенту..."
+                "Это была не благодарность. Передаю AI-ассистенту..."
             )
+            # Передаём сообщение AI-ассистенту напрямую (с текстом голосового)
+            if self._ai_assistant:
+                await self._ai_assistant.handle_forwarded_voice(update, context, text)
             return
         
         time_of_day = self._waiting_for_gratitude.pop(chat_id)

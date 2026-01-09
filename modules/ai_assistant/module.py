@@ -244,6 +244,18 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
                 f"❌ AI Error: {str(e)}"
             )
     
+    async def handle_forwarded_voice(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        transcribed_text: str
+    ) -> None:
+        """
+        Обрабатывает голосовое сообщение, переданное из другого модуля.
+        Используется когда gratitude модуль определил, что это не благодарность.
+        """
+        await self.process_voice_text(update, context, transcribed_text)
+
     async def process_voice_text(
         self,
         update: Update,

@@ -217,6 +217,9 @@ async def post_init(application: Application) -> None:
     # Подключаем AI-ассистент к модулю идей
     ai_assistant_module.set_ideas_module(ideas_module)
     
+    # Подключаем модуль благодарности к AI-ассистенту (для передачи не-благодарностей)
+    gratitude_module.set_ai_assistant(ai_assistant_module)
+    
     # Настраиваем сервис напоминаний
     reminder_service.setup(application)
     
