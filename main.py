@@ -242,13 +242,15 @@ def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     
     # Регистрируем модули
+    # ВАЖНО: ai_assistant должен быть ПОСЛЕДНИМ, чтобы обрабатывать
+    # все сообщения, которые не обработали другие модули
     module_manager.register_module(notion_module)
     module_manager.register_module(learning_module)
     module_manager.register_module(gratitude_module)
     module_manager.register_module(voice_module)
-    module_manager.register_module(ai_assistant_module)
     module_manager.register_module(ideas_module)
     module_manager.register_module(productivity_module)
+    module_manager.register_module(ai_assistant_module)  # ПОСЛЕДНИМ!
     
     logger.info(f"Зарегистрировано {len(module_manager)} модулей")
     

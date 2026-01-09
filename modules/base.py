@@ -4,7 +4,7 @@
 import logging
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 from telegram import Update
 from telegram.ext import Application, BaseHandler, ContextTypes
 
@@ -37,7 +37,14 @@ class BaseModule(ABC):
     """
     Абстрактный базовый класс для модулей бота.
     Все модули должны наследоваться от этого класса.
+    
+    Handler groups:
+    - Group 0: Default group for most handlers
+    - Group 1: Fallback handlers (like AI assistant) that should run last
     """
+    
+    # Группа обработчиков по умолчанию
+    handler_group: int = 0
     
     def __init__(self, name: str, description: str):
         self.name = name
@@ -55,7 +62,7 @@ class BaseModule(ABC):
         """Регистрирует модуль в приложении"""
         self._app = app
         for handler in self.get_handlers():
-            app.add_handler(handler)
+            app.add_handler(handler, group=self.handler_group)
         self.on_register()
     
     @abstractmethod

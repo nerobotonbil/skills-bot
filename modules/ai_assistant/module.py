@@ -73,7 +73,13 @@ class AIAssistantModule(BaseModule):
     AI assistant for managing the bot through natural language.
     Understands voice and text messages.
     Can save ideas to Notion.
+    
+    Uses handler_group=1 to run AFTER all other modules,
+    so it only handles messages that weren't processed elsewhere.
     """
+    
+    # Группа 1 - фоллбэк, выполняется после всех остальных модулей
+    handler_group = 1
     
     def __init__(self):
         super().__init__(
