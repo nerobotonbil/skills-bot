@@ -167,6 +167,54 @@ class GratitudeModule(BaseModule):
         
         await query.edit_message_text(prompt, parse_mode='Markdown')
     
+    def _is_gratitude_message(self, text: str) -> bool:
+        """
+        Проверяет, является ли сообщение благодарностью или это заметка/задача/вопрос.
+        Использует простые эвристики для быстрой проверки.
+        """
+        text_lower = text.lower().strip()
+        
+        # Ключевые слова заметок/задач (НЕ благодарность)
+        task_keywords = [
+            # Русские
+            "запиши", "записать", "сохрани", "добавь", "напомни",
+            "купить", "сделать", "позвонить", "написать", "отправить",
+            "заметк", "задач", "туду", "todo", "идея:", "заметка:",
+            "нужно ", "надо ", "следует ",
+            # Английские
+            "save", "note", "remind", "buy", "call", "send", "write down",
+            "task", "idea:", "note:", "need to", "have to", "should"
+        ]
+        
+        # Ключевые слова благодарности
+        gratitude_keywords = [
+            # Русские
+            "благодар", "спасибо", "рад", "счастлив", "хорошо",
+            "приятно", "ценю", "люблю", "нравится", "вдохновл",
+            "поддержк", "помощь", "семь", "друз", "здоровь",
+            # Английские
+            "grateful", "thankful", "appreciate", "blessed", "happy",
+            "glad", "love", "enjoy", "wonderful", "amazing"
+        ]
+        
+        # Проверяем на ключевые слова задач (приоритет)
+        for keyword in task_keywords:
+            if keyword in text_lower:
+                return False
+        
+        # Проверяем на URL (скорее всего заметка)
+        if "http://" in text_lower or "https://" in text_lower or "www." in text_lower:
+            return False
+        
+        # Проверяем на ключевые слова благодарности
+        for keyword in gratitude_keywords:
+            if keyword in text_lower:
+                return True
+        
+        # Если нет явных признаков, считаем благодарностью
+        # (так как пользователь в режиме ожидания благодарности)
+        return True
+
     async def handle_text_gratitude(
         self,
         update: Update,
@@ -178,9 +226,20 @@ class GratitudeModule(BaseModule):
         if chat_id not in self._waiting_for_gratitude:
             return
         
-        time_of_day = self._waiting_for_gratitude.pop(chat_id)
         text = update.message.text
         
+        # Проверяем, это благодарность или что-то другое
+        if not self._is_gratitude_message(text):
+            # Это не благодарность - сбрасываем режим ожидания
+            self._waiting_for_gratitude.pop(chat_id, None)
+            await update.message.reply_text(
+                "Это была не благодарность. "
+                "Передаю AI-ассистенту..."
+            )
+            # Не обрабатываем здесь - пусть AI-ассистент обработает
+            return
+        
+        time_of_day = self._waiting_for_gratitude.pop(chat_id)
         await self._save_gratitude(update, context, text, time_of_day)
     
     async def handle_voice_gratitude(
@@ -193,6 +252,16 @@ class GratitudeModule(BaseModule):
         chat_id = update.effective_chat.id
         
         if chat_id not in self._waiting_for_gratitude:
+            return
+        
+        # Проверяем, это благодарность или что-то другое
+        if not self._is_gratitude_message(text):
+            # Это не благодарность - сбрасываем режим ожидания
+            self._waiting_for_gratitude.pop(chat_id, None)
+            await update.message.reply_text(
+                "Это была не благодарность. "
+                "Передаю AI-ассистенту..."
+            )
             return
         
         time_of_day = self._waiting_for_gratitude.pop(chat_id)
