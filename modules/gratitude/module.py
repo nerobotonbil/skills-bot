@@ -285,10 +285,18 @@ class GratitudeModule(BaseModule):
         original: Optional[str] = None
     ) -> None:
         """Saves gratitude entry to Notion"""
-        today = date.today().isoformat()
+        # If it's between 00:00 and 03:00, treat as previous day's evening
+        now = datetime.now()
+        if 0 <= now.hour < 3:
+            entry_date = (date.today() - timedelta(days=1)).isoformat()
+            # Force evening for late night entries
+            if time_of_day == "morning":
+                time_of_day = "evening"
+        else:
+            entry_date = date.today().isoformat()
         
         entry = {
-            "date": today,
+            "date": entry_date,
             "time_of_day": time_of_day,
             "text": text,
             "original_text": original,
