@@ -365,19 +365,19 @@ class GratitudeModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Command /review - AI-powered weekly gratitude insights"""
-        await update.message.reply_text("🔄 Анализирую твои записи благодарности...")
+        """Command /review - AI-powered monthly gratitude insights"""
+        await update.message.reply_text("🔄 Анализирую твои записи благодарности за месяц...")
         
-        # Get entries from last 7 days
-        entries = await self._get_week_entries()
+        # Get entries from last 30 days
+        entries = await self._get_month_entries()
         
-        if not entries or len(entries) < 2:
+        if not entries or len(entries) < 3:
             await update.message.reply_text(
-                "📊 **Недельный обзор**\n\n"
+                "📊 **Месячный обзор**\n\n"
                 "Недостаточно записей для анализа.\n"
-                "Продолжай писать благодарности каждый день, и я покажу паттерны!\n\n"
-                f"Записей на этой неделе: {len(entries) if entries else 0}\n"
-                "Минимум нужно: 2",
+                "Продолжай писать благодарности, и я покажу паттерны!\n\n"
+                f"Записей за месяц: {len(entries) if entries else 0}\n"
+                "Минимум нужно: 3",
                 parse_mode='Markdown'
             )
             return
@@ -389,7 +389,7 @@ class GratitudeModule(BaseModule):
         skills_progress = await self._get_skills_progress()
         
         # Format and send response
-        message = await self._format_weekly_review(entries, analysis, skills_progress)
+        message = await self._format_monthly_review(entries, analysis, skills_progress)
         
         await update.message.reply_text(message, parse_mode='Markdown')
     
@@ -651,6 +651,168 @@ If no challenges, recommend skills that enhance what's already working."""
             message += "👏 Отличная последовательность! Продолжай!\n"
         
         return message
+    
+    async def _get_month_entries(self) -> List[Dict]:
+        """Gets entries from last 30 days from Notion"""
+        token = os.getenv("NOTION_API_TOKEN")
+        
+        if not token or not self._gratitude_db_id:
+            return []
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        }
+        
+        month_ago = (date.today() - timedelta(days=30)).isoformat()
+        
+        data = {
+            "filter": {
+                "property": "Date",
+                "date": {
+                    "on_or_after": month_ago
+                }
+            },
+            "sorts": [{"property": "Date", "direction": "descending"}],
+            "page_size": 100
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.notion.com/v1/databases/{self._gratitude_db_id}/query",
+                    headers=headers,
+                    json=data,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    results = response.json().get("results", [])
+                    entries = []
+                    
+                    for page in results:
+                        props = page.get("properties", {})
+                        
+                        title_arr = props.get("Gratitude", {}).get("title", [])
+                        text = title_arr[0].get("plain_text", "") if title_arr else ""
+                        
+                        date_obj = props.get("Date", {}).get("date", {})
+                        date_str = date_obj.get("start", "") if date_obj else ""
+                        
+                        select_obj = props.get("Select", {}).get("select", {})
+                        time_str = select_obj.get("name", "") if select_obj else ""
+                        
+                        if text:
+                            entries.append({
+                                "text": text,
+                                "date": date_str,
+                                "time": time_str
+                            })
+                    
+                    return entries
+                else:
+                    logger.error(f"Notion query error: {response.status_code}")
+                    return []
+                    
+        except Exception as e:
+            logger.error(f"Failed to get month entries from Notion: {e}")
+            return []
+    
+    async def _format_monthly_review(
+        self, 
+        entries: List[Dict], 
+        analysis: Dict,
+        skills_progress: Dict[str, float]
+    ) -> str:
+        """Formats the monthly review message"""
+        today = date.today()
+        month_ago = today - timedelta(days=30)
+        
+        message = f"📊 **Месячный обзор благодарности**\n"
+        message += f"_{month_ago.strftime('%d.%m')} - {today.strftime('%d.%m')}_\n\n"
+        
+        # Entry stats
+        morning_count = len([e for e in entries if e.get('time') == 'Morning'])
+        evening_count = len([e for e in entries if e.get('time') == 'Evening'])
+        message += f"📝 Записей за месяц: {len(entries)} ({morning_count} утро, {evening_count} вечер)\n\n"
+        
+        # Themes
+        themes = analysis.get("themes", [])
+        if themes:
+            message += "🔥 **Главные темы месяца:**\n"
+            for theme in themes[:5]:
+                message += f"• {theme}\n"
+            message += "\n"
+        
+        # Positive patterns
+        positive = analysis.get("positive_patterns", "")
+        if positive:
+            message += f"✨ **Что делает тебя счастливым:**\n_{positive}_\n\n"
+        
+        # Challenges and skill recommendations
+        challenges = analysis.get("challenges", [])
+        recommended = analysis.get("recommended_skills", [])
+        
+        if challenges:
+            message += "⚡ **Вызовы месяца:**\n"
+            for ch in challenges[:3]:
+                message += f"• {ch}\n"
+            message += "\n"
+        
+        if recommended:
+            message += "💡 **Рекомендации по навыкам:**\n"
+            for rec in recommended[:3]:
+                skill_name = rec.get("skill", "")
+                reason = rec.get("reason", "")
+                
+                progress = skills_progress.get(skill_name, 0)
+                if progress > 0:
+                    message += f"📚 **{skill_name}** ({progress:.0f}%)\n"
+                    message += f"_Ты уже изучаешь это! Продолжай._\n\n"
+                else:
+                    message += f"📚 **{skill_name}** (не начат)\n"
+                    message += f"_{reason}_\n\n"
+        
+        # AI insight
+        insight = analysis.get("insight", "")
+        if insight:
+            message += f"🎯 **Инсайт месяца:**\n_{insight}_\n\n"
+        
+        # Monthly encouragement
+        if len(entries) >= 50:
+            message += "🏆 Потрясающе! Более 50 записей за месяц!\n"
+        elif len(entries) >= 30:
+            message += "👏 Отличная последовательность! Ты писал каждый день!\n"
+        elif len(entries) >= 15:
+            message += "💪 Хороший прогресс! Попробуй писать чаще.\n"
+        
+        return message
+    
+    async def send_monthly_review(self, bot, chat_id: int) -> None:
+        """Sends monthly review (called by scheduler on 1st of each month)"""
+        entries = await self._get_month_entries()
+        
+        if not entries or len(entries) < 3:
+            await bot.send_message(
+                chat_id=chat_id,
+                text="📊 **Месячный обзор благодарности**\n\n"
+                     "Недостаточно записей благодарности за этот месяц для анализа.\n"
+                     "Постарайся написать хотя бы несколько записей в следующем месяце!\n\n"
+                     "Используй /gratitude чтобы начать 🙏",
+                parse_mode='Markdown'
+            )
+            return
+        
+        analysis = await self._analyze_patterns(entries)
+        skills_progress = await self._get_skills_progress()
+        message = await self._format_monthly_review(entries, analysis, skills_progress)
+        
+        await bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            parse_mode='Markdown'
+        )
     
     async def send_weekly_review(self, bot, chat_id: int) -> None:
         """Sends weekly review (called by scheduler on Fridays)"""

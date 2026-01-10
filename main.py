@@ -95,7 +95,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 Команды - благодарность:
 /gratitude - записать благодарность
-/review - недельный обзор с AI
+/review - месячный обзор с AI
 
 Команды - система:
 /sync - синхронизация с Notion
@@ -104,8 +104,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 Напоминания (Тбилиси):
 09:00 - утренняя благодарность
 18:00 - защита серии
+20:00 - задача на вечер (1 навык)
 23:00 - вечерняя благодарность
-пятница 19:00 - недельный обзор
+1-е число месяца 19:00 - месячный обзор
 
 Как пользоваться:
 Просто напиши мне или отправь голосовое.
@@ -132,7 +133,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 Благодарность:
 /gratitude - записать
-/review - недельный обзор с AI
+/review - месячный обзор с AI
 
 Система:
 /sync - синхронизация с Notion
@@ -141,8 +142,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 Напоминания (Тбилиси):
 09:00 - утренняя благодарность
 18:00 - защита серии
+20:00 - задача на вечер (1 навык)
 23:00 - вечерняя благодарность
-пятница 19:00 - недельный обзор
+1-е число месяца 19:00 - месячный обзор
 
 AI: пиши текст или голосовое.
 """

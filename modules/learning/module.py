@@ -770,6 +770,39 @@ class LearningModule(BaseModule):
         
         return message
     
+    def generate_single_task_message(self, skills: List[Dict]) -> str:
+        """Generates simple message with one task (8:00 PM)"""
+        if not skills:
+            return (
+                "🎯 **Задача на вечер**\n\n"
+                "У тебя пока нет активных навыков.\n"
+                "Начни изучать что-то новое в Notion!"
+            )
+        
+        incomplete = self._get_incomplete_skills(skills)
+        
+        if not incomplete:
+            return (
+                "🎯 **Задача на вечер**\n\n"
+                "🎉 Все активные навыки изучены!\n"
+                "Время начать новый навык."
+            )
+        
+        task = self._generate_smart_task(incomplete)
+        
+        if not task:
+            return "🎯 **Задача на вечер**\n\n✅ На сегодня всё готово!"
+        
+        bar = self._progress_bar(task['current'], task['maximum'], 10)
+        
+        message = f"🎯 **Задача на вечер**\n\n"
+        message += f"**{task['skill_name']}**\n"
+        message += f"{task['emoji']} {task['content_name_en']}\n"
+        message += f"{bar} {task['current']:.0f}/{task['maximum']}\n\n"
+        message += f"После выполнения обнови прогресс в Notion!"
+        
+        return message
+    
     def generate_morning_message(self) -> str:
         """Generates morning message (9:00 AM)"""
         return (

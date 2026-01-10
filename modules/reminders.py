@@ -1,5 +1,5 @@
 """
-Модуль напоминаний - утренняя/вечерняя благодарность, недельный обзор, защита серии
+Модуль напоминаний - утренняя/вечерняя благодарность, месячный обзор, защита серии
 """
 import logging
 import json
@@ -19,8 +19,9 @@ from config.settings import (
 
 logger = logging.getLogger(__name__)
 
-# Время пятничного обзора
-FRIDAY_REVIEW_TIME = "19:00"
+# Время месячного обзора (1-е число каждого месяца)
+MONTHLY_REVIEW_TIME = "19:00"
+MONTHLY_REVIEW_DAY = 1  # 1-е число месяца
 
 # Время напоминания о серии (днём, до вечерней задачи)
 STREAK_REMINDER_TIME = "18:00"
@@ -36,9 +37,9 @@ class ReminderService:
     Расписание:
     - 09:00 — утренняя благодарность
     - 18:00 — защита серии (loss aversion)
-    - 20:00 — вечерняя задача
+    - 20:00 — вечерняя задача (1 навык)
     - 23:00 — вечерняя благодарность
-    - Пятница 19:00 — недельный обзор с AI
+    - 1-е число месяца 19:00 — месячный обзор с AI
     """
     
     def __init__(self):
@@ -77,7 +78,7 @@ class ReminderService:
         streak_hour, streak_minute = scheduler.parse_time(STREAK_REMINDER_TIME)
         task_hour, task_minute = scheduler.parse_time(EVENING_TASK_TIME)
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
-        friday_hour, friday_minute = scheduler.parse_time(FRIDAY_REVIEW_TIME)
+        monthly_hour, monthly_minute = scheduler.parse_time(MONTHLY_REVIEW_TIME)
         
         # Утренняя благодарность (09:00)
         scheduler.add_daily_job(
@@ -95,7 +96,7 @@ class ReminderService:
             minute=streak_minute
         )
         
-        # Вечерняя задача (20:00)
+        # Вечерняя задача (20:00) — 1 навык
         scheduler.add_daily_job(
             "evening_task",
             self.send_evening_task,
@@ -111,20 +112,20 @@ class ReminderService:
             minute=evening_minute
         )
         
-        # Пятничный недельный обзор (19:00)
-        scheduler.add_weekly_job(
-            "friday_review",
-            self.send_weekly_review,
-            day_of_week=4,  # Пятница (0=Понедельник)
-            hour=friday_hour,
-            minute=friday_minute
+        # Месячный обзор (1-е число каждого месяца в 19:00)
+        scheduler.add_monthly_job(
+            "monthly_review",
+            self.send_monthly_review,
+            day=MONTHLY_REVIEW_DAY,
+            hour=monthly_hour,
+            minute=monthly_minute
         )
         
         logger.info(
             f"Напоминания настроены: утро в {MORNING_REMINDER_TIME}, "
             f"серия в {STREAK_REMINDER_TIME}, "
             f"задача в {EVENING_TASK_TIME}, вечер в {EVENING_REMINDER_TIME}, "
-            f"недельный обзор в пятницу в {FRIDAY_REVIEW_TIME}"
+            f"месячный обзор {MONTHLY_REVIEW_DAY}-го числа в {MONTHLY_REVIEW_TIME}"
         )
         
         if self._chat_id:
@@ -205,7 +206,7 @@ class ReminderService:
     async def send_evening_task(self) -> None:
         """
         Отправляет вечернюю задачу (20:00).
-        Простая рекомендация на основе прогресса.
+        Один случайный навык для изучения.
         """
         if not self._app or not self._chat_id:
             logger.warning("Не могу отправить вечернюю задачу: app или chat_id не установлены")
@@ -213,7 +214,7 @@ class ReminderService:
         
         try:
             skills = await notion_module.refresh_skills_cache()
-            message = learning_module.generate_evening_task_message(skills)
+            message = learning_module.generate_single_task_message(skills)
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -221,7 +222,7 @@ class ReminderService:
                 parse_mode='Markdown'
             )
             
-            logger.info("Вечерняя задача отправлена")
+            logger.info("Вечерняя задача отправлена (1 навык)")
             
         except Exception as e:
             logger.error(f"Ошибка отправки вечерней задачи: {e}")
@@ -255,28 +256,28 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Ошибка отправки вечерней благодарности: {e}")
     
-    async def send_weekly_review(self) -> None:
+    async def send_monthly_review(self) -> None:
         """
-        Отправляет недельный обзор с AI-анализом (Пятница 19:00).
-        Анализирует паттерны, определяет вызовы, рекомендует навыки.
+        Отправляет месячный обзор с AI-анализом (1-е число месяца в 19:00).
+        Анализирует паттерны за месяц, определяет вызовы, рекомендует навыки.
         """
         if not self._app or not self._chat_id:
-            logger.warning("Не могу отправить недельный обзор: app или chat_id не установлены")
+            logger.warning("Не могу отправить месячный обзор: app или chat_id не установлены")
             return
         
         try:
-            logger.info("Отправляю пятничный недельный обзор...")
+            logger.info("Отправляю месячный обзор...")
             
-            # Используем функцию недельного обзора из модуля благодарности
-            await gratitude_module.send_weekly_review(
+            # Используем функцию месячного обзора из модуля благодарности
+            await gratitude_module.send_monthly_review(
                 self._app.bot, 
                 self._chat_id
             )
             
-            logger.info("Недельный обзор успешно отправлен")
+            logger.info("Месячный обзор успешно отправлен")
             
         except Exception as e:
-            logger.error(f"Ошибка отправки недельного обзора: {e}")
+            logger.error(f"Ошибка отправки месячного обзора: {e}")
     
     async def send_custom_reminder(self, message: str) -> None:
         """Отправляет произвольное напоминание"""
