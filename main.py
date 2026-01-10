@@ -222,6 +222,9 @@ async def post_init(application: Application) -> None:
     # Подключаем модуль благодарности к AI-ассистенту (для передачи не-благодарностей)
     gratitude_module.set_ai_assistant(ai_assistant_module)
     
+    # Подключаем AI-ассистент к модулю благодарности (для голосовых сообщений)
+    ai_assistant_module.set_gratitude_module(gratitude_module)
+    
     # Настраиваем сервис напоминаний
     reminder_service.setup(application)
     

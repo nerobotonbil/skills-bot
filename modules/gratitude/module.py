@@ -844,6 +844,10 @@ If no challenges, recommend skills that enhance what's already working."""
     def set_waiting_for_gratitude(self, chat_id: int, time_of_day: str) -> None:
         """Sets gratitude waiting state for chat"""
         self._waiting_for_gratitude[chat_id] = time_of_day
+    
+    def is_waiting_for_gratitude(self, chat_id: int) -> bool:
+        """Checks if chat is waiting for gratitude input"""
+        return chat_id in self._waiting_for_gratitude
 
 
 # Module instance

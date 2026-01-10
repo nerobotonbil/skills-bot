@@ -89,6 +89,7 @@ class AIAssistantModule(BaseModule):
         self._client = None
         self._conversation_history: Dict[int, List[Dict]] = {}
         self._ideas_module = None
+        self._gratitude_module = None
         
         # System prompt for AI
         self._system_prompt = """You are a helpful personal AI assistant in a Telegram bot for learning and self-development.
@@ -142,6 +143,11 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         """Sets ideas module for saving to Notion"""
         self._ideas_module = ideas_module
         logger.info("Ideas module connected to AI Assistant")
+    
+    def set_gratitude_module(self, gratitude_module):
+        """Sets gratitude module for handling voice gratitude"""
+        self._gratitude_module = gratitude_module
+        logger.info("Gratitude module connected to AI Assistant")
 
     def get_handlers(self) -> List[BaseHandler]:
         """Returns handlers for text messages"""
@@ -271,9 +277,21 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         """
         Processes transcribed text from voice message.
         Called from voice module.
-        FIRST checks for ideas, then processes with AI.
+        FIRST checks for gratitude waiting, then ideas, then processes with AI.
         """
-        # FIRST: Check if this is an idea to save
+        chat_id = update.effective_chat.id
+        
+        # FIRST: Check if gratitude module is waiting for input
+        if self._gratitude_module and self._gratitude_module.is_waiting_for_gratitude(chat_id):
+            logger.info(f"Gratitude waiting detected, forwarding voice text: {transcribed_text[:50]}...")
+            await update.message.reply_text(
+                f"🎤 **Recognized:**\n_{transcribed_text}_",
+                parse_mode="Markdown"
+            )
+            await self._gratitude_module.handle_voice_gratitude(update, context, transcribed_text)
+            return
+        
+        # SECOND: Check if this is an idea to save
         if detect_idea_intent(transcribed_text):
             logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
             response = await self._save_idea_directly(transcribed_text, update)
