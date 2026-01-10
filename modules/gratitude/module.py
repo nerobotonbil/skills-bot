@@ -234,18 +234,7 @@ class GratitudeModule(BaseModule):
         
         text = update.message.text
         
-        # Проверяем, это благодарность или что-то другое
-        if not self._is_gratitude_message(text):
-            # Это не благодарность - сбрасываем режим ожидания
-            self._waiting_for_gratitude.pop(chat_id, None)
-            await update.message.reply_text(
-                "Это была не благодарность. Передаю AI-ассистенту..."
-            )
-            # Передаём сообщение AI-ассистенту напрямую
-            if self._ai_assistant:
-                await self._ai_assistant.handle_text_message(update, context)
-            return
-        
+        # Пользователь в режиме ожидания благодарности - сохраняем всё как благодарность
         time_of_day = self._waiting_for_gratitude.pop(chat_id)
         await self._save_gratitude(update, context, text, time_of_day)
     
@@ -261,18 +250,7 @@ class GratitudeModule(BaseModule):
         if chat_id not in self._waiting_for_gratitude:
             return
         
-        # Проверяем, это благодарность или что-то другое
-        if not self._is_gratitude_message(text):
-            # Это не благодарность - сбрасываем режим ожидания
-            self._waiting_for_gratitude.pop(chat_id, None)
-            await update.message.reply_text(
-                "Это была не благодарность. Передаю AI-ассистенту..."
-            )
-            # Передаём сообщение AI-ассистенту напрямую (с текстом голосового)
-            if self._ai_assistant:
-                await self._ai_assistant.handle_forwarded_voice(update, context, text)
-            return
-        
+        # Пользователь в режиме ожидания благодарности - сохраняем всё как благодарность
         time_of_day = self._waiting_for_gratitude.pop(chat_id)
         await self._save_gratitude(update, context, text, time_of_day, original=text)
     
