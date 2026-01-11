@@ -18,7 +18,6 @@ from telegram.ext import (
 )
 
 from modules.base import BaseModule
-from core.notion_client import notion_client
 
 logger = logging.getLogger(__name__)
 
@@ -424,34 +423,74 @@ class ContactsModule(BaseModule):
     
     async def _save_contact_to_notion(self, chat_id: int) -> bool:
         """Save contact to Notion database"""
+        import os
+        import httpx
+        
         try:
             data = self._temp_contact_data[chat_id]
+            token = os.getenv("NOTION_API_TOKEN")
             
-            # Prepare properties
+            if not token:
+                logger.error("NOTION_API_TOKEN not configured")
+                return False
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28"
+            }
+            
+            # Prepare properties for Notion API
             properties = {
-                "Name": data["name"],
-                "What's value? ": data.get("value", ""),
-                "Nationality ": json.dumps(data.get("nationality", [])),
-                "date:Date:start": data.get("date", ""),
-                "date:Date:is_datetime": 0,
-                "type contact": data.get("contact_type", "🟩 Fresh Contact"),
-                "Warm Word ": data.get("warm_word", ""),
-                "indastry": json.dumps(data.get("industry", []))
+                "Name": {
+                    "title": [{"text": {"content": data["name"]}}]
+                },
+                "What's value? ": {
+                    "rich_text": [{"text": {"content": data.get("value", "")}}]
+                },
+                "Nationality ": {
+                    "multi_select": [{"name": nat} for nat in data.get("nationality", [])]
+                },
+                "Date": {
+                    "date": {"start": data.get("date", "")}
+                },
+                "type contact": {
+                    "select": {"name": data.get("contact_type", "🟩 Fresh Contact")}
+                },
+                "Warm Word ": {
+                    "rich_text": [{"text": {"content": data.get("warm_word", "")}}]
+                },
+                "indastry": {
+                    "multi_select": [{"name": ind} for ind in data.get("industry", [])]
+                }
             }
             
             # Add followup if exists
             if data.get("followup"):
-                properties["date:Last follow up:start"] = data["followup"]
-                properties["date:Last follow up:is_datetime"] = 0
+                properties["Last follow up"] = {
+                    "date": {"start": data["followup"]}
+                }
             
             # Create page in Notion
-            result = await notion_client.create_page(
-                data_source_id=CONTACTS_DATA_SOURCE_ID,
-                properties=properties
-            )
+            notion_data = {
+                "parent": {"database_id": CONTACTS_DATABASE_ID},
+                "properties": properties
+            }
             
-            logger.info(f"Contact saved to Notion: {data['name']}")
-            return True
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.notion.com/v1/pages",
+                    headers=headers,
+                    json=notion_data,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Contact saved to Notion: {data['name']}")
+                    return True
+                else:
+                    logger.error(f"Failed to save contact to Notion: {response.status_code} - {response.text}")
+                    return False
             
         except Exception as e:
             logger.error(f"Error saving contact to Notion: {e}")
