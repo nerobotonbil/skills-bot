@@ -92,7 +92,11 @@ class ContactsModule(BaseModule):
         try:
             from openai import AsyncOpenAI
             
-            client = AsyncOpenAI()
+            # Use original OpenAI API (not custom base_url)
+            client = AsyncOpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url="https://api.openai.com/v1"
+            )
             
             system_prompt = """Ты помощник для извлечения информации о контактах из текста.
 Извлеки следующую информацию о человеке:
