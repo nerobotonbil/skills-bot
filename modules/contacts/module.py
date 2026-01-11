@@ -156,11 +156,16 @@ class ContactsModule(BaseModule):
     async def _save_contact_to_notion(self, data: Dict[str, Any]) -> bool:
         """Save contact to Notion database"""
         try:
+            import asyncio
+            
             token = os.getenv("NOTION_API_TOKEN")
             
             if not token:
                 logger.error("NOTION_API_TOKEN not configured")
                 return False
+            
+            # Add small delay to avoid rate limiting (3 requests per second max)
+            await asyncio.sleep(0.4)
             
             headers = {
                 "Authorization": f"Bearer {token}",
@@ -239,8 +244,28 @@ class ContactsModule(BaseModule):
                 if response.status_code == 200:
                     logger.info(f"Contact saved to Notion: {data['name']}")
                     return True
+                elif response.status_code == 429:
+                    # Rate limit exceeded, wait and retry once
+                    logger.warning(f"Rate limit exceeded, waiting 1 second and retrying...")
+                    await asyncio.sleep(1.0)
+                    
+                    # Retry request
+                    response = await client.post(
+                        "https://api.notion.com/v1/pages",
+                        headers=headers,
+                        json=notion_data,
+                        timeout=30.0
+                    )
+                    
+                    if response.status_code == 200:
+                        logger.info(f"Contact saved to Notion after retry: {data['name']}")
+                        return True
+                    else:
+                        logger.error(f"Failed to save contact after retry: {response.status_code} - {response.text}")
+                        return False
                 else:
                     logger.error(f"Failed to save contact to Notion: {response.status_code} - {response.text}")
+                    logger.error(f"Request data: {json.dumps(notion_data, indent=2)}")
                     return False
             
         except Exception as e:
