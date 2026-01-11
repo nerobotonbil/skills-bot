@@ -35,6 +35,7 @@ from modules.voice.module import voice_module
 from modules.ai_assistant.module import ai_assistant_module
 from modules.ideas.module import ideas_module
 from modules.productivity.module import productivity_module
+from modules.contacts.module import contacts_module
 from modules.reminders import reminder_service
 
 # Logging setup
@@ -134,6 +135,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 Благодарность:
 /gratitude - записать
 /review - месячный обзор с AI
+Контакты:
+/contact - добавить контакт
+/contacts - список контактов
 
 Система:
 /sync - синхронизация с Notion
@@ -205,6 +209,8 @@ async def post_init(application: Application) -> None:
         BotCommand("freeze", "Заморозка серии"),
         BotCommand("gratitude", "Записать благодарность"),
         BotCommand("review", "Недельный обзор"),
+        BotCommand("contact", "Добавить контакт"),
+        BotCommand("contacts", "Список контактов"),
         BotCommand("sync", "Синхронизация с Notion"),
         BotCommand("help", "Справка по командам"),
     ]
@@ -255,6 +261,7 @@ def main() -> None:
     module_manager.register_module(voice_module)
     module_manager.register_module(ideas_module)
     module_manager.register_module(productivity_module)
+    module_manager.register_module(contacts_module)
     module_manager.register_module(ai_assistant_module)  # ПОСЛЕДНИМ!
     
     logger.info(f"Зарегистрировано {len(module_manager)} модулей")
