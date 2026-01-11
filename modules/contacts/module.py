@@ -260,10 +260,18 @@ class ContactsModule(BaseModule):
         Check if the text is related to adding a contact.
         """
         keywords = [
+            # Russian
             "познакомился", "познакомилась", "встретил", "встретила",
-            "новый человек", "новый контакт", "нетворкинг", "networking",
-            "контакт", "знакомство", "встреча с", "met someone", "new contact",
-            "запиши контакт", "добавь контакт", "сохрани контакт"
+            "новый человек", "новый контакт", "нетворкинг",
+            "контакт", "знакомство", "встреча с",
+            "запиши контакт", "добавь контакт", "сохрани контакт",
+            # English
+            "met someone", "met a", "i met", "new contact", "networking",
+            "met her", "met him", "met this", "wonderful girl", "wonderful guy",
+            "interesting person", "interesting guy", "interesting girl",
+            "would like to meet", "want to meet again", "meet her again", "meet him again",
+            "talked to", "talked with", "had a conversation", "spoke with",
+            "save contact", "add contact", "record contact"
         ]
         
         text_lower = text.lower()
