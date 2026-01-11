@@ -153,7 +153,7 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
     def set_contacts_module(self, contacts_module):
         """Set contacts module reference for voice handling"""
         self._contacts_module = contacts_module
-        logger.info("Contacts module connected to AI assistant"))
+        logger.info("Contacts module connected to AI assistant")
 
     def get_handlers(self) -> List[BaseHandler]:
         """Returns handlers for text messages"""
