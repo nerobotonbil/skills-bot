@@ -84,12 +84,13 @@ class AIAssistantModule(BaseModule):
     def __init__(self):
         super().__init__(
             name="ai_assistant",
-            description="AI assistant for managing the bot through natural language"
+            description="AI assistant for natural conversation"
         )
         self._client = None
         self._conversation_history: Dict[int, List[Dict]] = {}
         self._ideas_module = None
         self._gratitude_module = None
+        self._contacts_module = None
         
         # System prompt for AI
         self._system_prompt = """You are a helpful personal AI assistant in a Telegram bot for learning and self-development.
@@ -145,9 +146,14 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         logger.info("Ideas module connected to AI Assistant")
     
     def set_gratitude_module(self, gratitude_module):
-        """Sets gratitude module for handling voice gratitude"""
+        """Set gratitude module reference for voice handling"""
         self._gratitude_module = gratitude_module
-        logger.info("Gratitude module connected to AI Assistant")
+        logger.info("Gratitude module connected to AI assistant")
+    
+    def set_contacts_module(self, contacts_module):
+        """Set contacts module reference for voice handling"""
+        self._contacts_module = contacts_module
+        logger.info("Contacts module connected to AI assistant"))
 
     def get_handlers(self) -> List[BaseHandler]:
         """Returns handlers for text messages"""
@@ -291,7 +297,17 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             await self._gratitude_module.handle_voice_gratitude(update, context, transcribed_text)
             return
         
-        # SECOND: Check if this is an idea to save
+        # SECOND: Check if this is a contact to save
+        if self._contacts_module and self._contacts_module.is_contact_related(transcribed_text):
+            logger.info(f"Contact detected in voice message: {transcribed_text[:50]}...")
+            await update.message.reply_text(
+                f"🎤 *Recognized:*\n_{transcribed_text}_\n\n💾 Saving contact...",
+                parse_mode="Markdown"
+            )
+            await self._contacts_module.process_contact_voice(transcribed_text, chat_id, context)
+            return
+        
+        # THIRD: Check if this is an idea to save
         if detect_idea_intent(transcribed_text):
             logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
             response = await self._save_idea_directly(transcribed_text, update)
