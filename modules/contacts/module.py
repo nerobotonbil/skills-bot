@@ -222,10 +222,14 @@ class ContactsModule(BaseModule):
                 }
             
             if data.get("industry"):
-                # Handle both string and list
-                industries = data["industry"] if isinstance(data["industry"], list) else [data["industry"]]
+                # Handle both string and list, split by commas if needed
+                if isinstance(data["industry"], list):
+                    industries = data["industry"]
+                else:
+                    # Split by comma and strip whitespace
+                    industries = [ind.strip() for ind in data["industry"].split(',')]
                 properties["indastry"] = {
-                    "multi_select": [{"name": ind} for ind in industries]
+                    "multi_select": [{"name": ind} for ind in industries if ind]
                 }
             
             # Add followup if exists
