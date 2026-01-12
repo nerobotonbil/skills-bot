@@ -37,6 +37,7 @@ from modules.ideas.module import ideas_module
 from modules.productivity.module import productivity_module
 from modules.contacts.module import contacts_module
 from modules.reminders import reminder_service
+from modules.logging_handler import telegram_handler, get_recent_logs
 
 # Logging setup
 logging.basicConfig(
@@ -44,7 +45,8 @@ logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(DATA_DIR / "bot.log")
+        logging.FileHandler(DATA_DIR / "bot.log"),
+        telegram_handler  # Send errors to Telegram
     ]
 )
 logger = logging.getLogger(__name__)
@@ -74,6 +76,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     context.bot_data['user_chat_id'] = chat_id
     reminder_service.set_chat_id(chat_id)
     
+    # Настраиваем Telegram logging handler
+    telegram_handler.set_bot(context.bot, chat_id)
+    logger.info("Telegram logging handler configured for user")
+    
     welcome_message = f"""Привет, {user.first_name}!
 
 Я AI-ассистент для обучения и саморазвития.
@@ -100,6 +106,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 Команды - система:
 /sync - синхронизация с Notion
+/logs - последние логи (ошибки)
 /help - справка
 
 Напоминания (Тбилиси):
@@ -141,6 +148,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 Система:
 /sync - синхронизация с Notion
+/logs - последние логи
 /modules - активные модули
 
 Напоминания (Тбилиси):
@@ -153,6 +161,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 AI: пиши текст или голосовое.
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
+
+
+@owner_only
+async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает последние логи"""
+    try:
+        count = 10
+        # Проверяем, есть ли аргумент (количество логов)
+        if context.args and len(context.args) > 0:
+            try:
+                count = int(context.args[0])
+                count = min(count, 50)  # Максимум 50
+            except ValueError:
+                pass
+        
+        logs_text = get_recent_logs(count)
+        await update.message.reply_text(logs_text, parse_mode='Markdown')
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка получения логов: {e}")
 
 
 @owner_only
@@ -237,6 +264,8 @@ async def post_init(application: Application) -> None:
     # Настраиваем сервис напоминаний
     reminder_service.setup(application)
     
+    # Telegram logging handler будет настроен при /start
+    
     # Запускаем планировщик
     scheduler.start()
     
@@ -281,6 +310,7 @@ def main() -> None:
     # Регистрируем базовые обработчики
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CommandHandler("modules", modules_command))
     
     # Регистрируем модули в приложении
