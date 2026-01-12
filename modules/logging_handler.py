@@ -30,6 +30,26 @@ class TelegramLoggingHandler(logging.Handler):
     def emit(self, record):
         """Send log record to Telegram"""
         try:
+            # Filter out Telegram internal errors (not relevant to user)
+            ignored_modules = [
+                'telegram.ext.Updater',
+                'telegram.ext._updater',
+                'telegram.ext.Application',
+                'httpx',
+                'httpcore'
+            ]
+            
+            # Check if this is from an ignored module
+            if any(record.name.startswith(mod) for mod in ignored_modules):
+                # Still store in recent logs but don't send to Telegram
+                log_entry = self.format(record)
+                recent_logs.append({
+                    'timestamp': datetime.now().isoformat(),
+                    'level': record.levelname,
+                    'message': log_entry
+                })
+                return
+            
             # Format log message
             log_entry = self.format(record)
             
