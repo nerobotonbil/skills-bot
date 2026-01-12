@@ -36,6 +36,8 @@ class ContactsModule(BaseModule):
             name="contacts",
             description="Manage networking contacts in Notion via voice messages"
         )
+        # Store last saved contact data for advice generation
+        self.last_contact_data = {}
     
     def get_handlers(self) -> List[BaseHandler]:
         """Returns command handlers"""
@@ -65,12 +67,16 @@ class ContactsModule(BaseModule):
             success = await self._save_contact_to_notion(contact_data)
             
             if success:
+                # Store contact data for potential advice request
+                self.last_contact_data[chat_id] = contact_data
+                
                 # Send confirmation to user
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=f"✅ *Контакт сохранён в Notion!*\n\n"
                          f"👤 Имя: {contact_data['name']}\n"
-                         f"💡 Ценность: {contact_data.get('value', 'не указано')[:50]}...",
+                         f"💡 Ценность: {contact_data.get('value', 'не указано')[:50]}...\n\n"
+                         f"💬 Хочешь получить совет по работе с этим контактом? Отправь голосовое сообщение с вопросом!",
                     parse_mode="Markdown"
                 )
                 return True
@@ -286,6 +292,172 @@ class ContactsModule(BaseModule):
             f"[Открыть базу данных](https://www.notion.so/{CONTACTS_DATABASE_ID})",
             parse_mode="Markdown"
         )
+    
+    async def generate_advice(
+        self,
+        transcribed_text: str,
+        chat_id: int,
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> bool:
+        """
+        Generate personalized advice for working with the last saved contact.
+        """
+        try:
+            # Check if there's a recent contact
+            if chat_id not in self.last_contact_data:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ Нет недавно сохранённого контакта. Сначала сохрани контакт, а потом запроси совет!"
+                )
+                return False
+            
+            contact_data = self.last_contact_data[chat_id]
+            
+            # Generate advice using AI
+            from openai import AsyncOpenAI
+            
+            client = AsyncOpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url="https://api.openai.com/v1"
+            )
+            
+            system_prompt = f"""Ты эксперт по нетворкингу и построению деловых отношений.
+
+Информация о контакте:
+- Имя: {contact_data.get('name', 'не указано')}
+- Ценность: {contact_data.get('value', 'не указано')}
+- Национальность: {contact_data.get('nationality', 'не указано')}
+- Индустрия: {contact_data.get('industry', 'не указано')}
+- Тип контакта: {contact_data.get('contact_type', 'не указано')}
+- Теплые слова: {contact_data.get('warm_word', 'не указано')}
+
+Пользователь просит совет по работе с этим контактом. Дай персонализированный, практичный совет на основе всей информации о контакте и запроса пользователя.
+
+Отвечай на русском языке, кратко и по делу (2-4 предложения)."""
+            
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": transcribed_text}
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            advice = response.choices[0].message.content.strip()
+            
+            # Send advice to user
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"💡 *Совет по работе с {contact_data['name']}:*\n\n{advice}\n\n"
+                     f"✅ Совет сохранён в Notion!",
+                parse_mode="Markdown"
+            )
+            
+            # Update Notion with advice
+            await self._update_contact_advice(contact_data['name'], advice)
+            
+            # Clear last contact data
+            del self.last_contact_data[chat_id]
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error generating advice: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Ошибка при генерации совета: {str(e)}"
+            )
+            return False
+    
+    async def _update_contact_advice(self, contact_name: str, advice: str) -> bool:
+        """
+        Update the Advise field for a contact in Notion.
+        """
+        try:
+            notion_token = os.getenv("NOTION_API_TOKEN")
+            if not notion_token:
+                logger.error("NOTION_API_TOKEN not found")
+                return False
+            
+            headers = {
+                "Authorization": f"Bearer {notion_token}",
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28"
+            }
+            
+            # First, search for the contact by name
+            async with httpx.AsyncClient() as client:
+                # Query database for contact
+                search_response = await client.post(
+                    f"https://api.notion.com/v1/databases/{CONTACTS_DATABASE_ID}/query",
+                    headers=headers,
+                    json={
+                        "filter": {
+                            "property": "Name",
+                            "title": {
+                                "equals": contact_name
+                            }
+                        },
+                        "page_size": 1
+                    },
+                    timeout=30.0
+                )
+                
+                if search_response.status_code != 200:
+                    logger.error(f"Failed to search contact: {search_response.text}")
+                    return False
+                
+                results = search_response.json().get("results", [])
+                if not results:
+                    logger.error(f"Contact {contact_name} not found in Notion")
+                    return False
+                
+                page_id = results[0]["id"]
+                
+                # Update the page with advice
+                update_response = await client.patch(
+                    f"https://api.notion.com/v1/pages/{page_id}",
+                    headers=headers,
+                    json={
+                        "properties": {
+                            "Advise": {
+                                "rich_text": [{"text": {"content": advice}}]
+                            }
+                        }
+                    },
+                    timeout=30.0
+                )
+                
+                if update_response.status_code == 200:
+                    logger.info(f"Advice updated for contact: {contact_name}")
+                    return True
+                else:
+                    logger.error(f"Failed to update advice: {update_response.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Error updating contact advice: {e}")
+            return False
+    
+    def is_advice_request(self, text: str) -> bool:
+        """
+        Check if the text is a request for advice about a contact.
+        """
+        keywords = [
+            # Russian
+            "совет", "как работать", "как общаться", "как поддерживать",
+            "что делать", "как действовать", "стратегия", "подход",
+            "как с ним", "как с ней", "направление", "рекомендация",
+            # English
+            "advice", "how to work", "how to communicate", "how to maintain",
+            "what to do", "how to approach", "strategy", "recommendation",
+            "how should i", "what should i"
+        ]
+        
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in keywords)
     
     def is_contact_related(self, text: str) -> bool:
         """
