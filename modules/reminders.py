@@ -112,11 +112,19 @@ class ReminderService:
             minute=evening_minute
         )
         
-        # Автоматическое обновление стрика (23:00) - проверка Notion
+        # Напоминание о стрике (23:00) - если прогресса нет
+        scheduler.add_daily_job(
+            "streak_reminder_23",
+            self.send_streak_reminder_23,
+            hour=23,
+            minute=0
+        )
+        
+        # Финальная проверка стрика (03:00) - окончательное обновление
         scheduler.add_daily_job(
             "auto_streak_update",
             self.auto_update_streak,
-            hour=23,
+            hour=3,
             minute=0
         )
         
@@ -287,11 +295,41 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Ошибка отправки месячного обзора: {e}")
     
+    async def send_streak_reminder_23(self) -> None:
+        """
+        Отправляет напоминание в 23:00, если прогресса нет.
+        Не сбрасывает стрик - даёт время до 03:00.
+        """
+        if not self._app or not self._chat_id:
+            logger.warning("Не могу отправить напоминание: app или chat_id не установлены")
+            return
+        
+        try:
+            from modules.productivity.module import productivity_module
+            
+            # Проверяем Notion на наличие прогресса
+            has_progress = await productivity_module._check_notion_progress_today()
+            
+            if not has_progress:
+                info = productivity_module.get_streak_info()
+                if info['current'] > 0:
+                    await self._app.bot.send_message(
+                        chat_id=self._chat_id,
+                        text=f"⚠️ **Напоминание о стрике**\n\nСегодня пока нет прогресса в Notion.\nТекущая серия: **{info['current']} дней**\n\nУ тебя есть время до 03:00, чтобы добавить прогресс или использовать /freeze для заморозки.",
+                        parse_mode='Markdown'
+                    )
+                    logger.info("Отправлено напоминание о стрике в 23:00")
+            else:
+                logger.info("Прогресс есть, напоминание не требуется")
+                
+        except Exception as e:
+            logger.error(f"Ошибка отправки напоминания о стрике: {e}")
+    
     async def auto_update_streak(self) -> None:
         """
-        Автоматически обновляет стрик каждый день в 23:00.
-        Проверяет Notion на наличие прогресса и обновляет стрик.
-        Если прогресса нет - отправляет напоминание.
+        Автоматически обновляет стрик каждый день в 03:00.
+        Проверяет Notion на наличие прогресса за предыдущий день и обновляет стрик.
+        Если прогресса нет - стрик может сброситься (или использоваться заморозка).
         """
         if not self._app or not self._chat_id:
             logger.warning("Не могу обновить стрик: app или chat_id не установлены")

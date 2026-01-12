@@ -119,6 +119,56 @@ class ProductivityModule(BaseModule):
     
     # ==================== STREAK SYSTEM ====================
     
+    async def _check_notion_progress_today(self) -> bool:
+        """Check if there's any progress in Notion today (without updating streak)"""
+        try:
+            from config.settings import NOTION_SKILLS_DATABASE_ID
+            import httpx
+            
+            token = os.getenv("NOTION_API_TOKEN")
+            if not token:
+                logger.error("NOTION_API_TOKEN not configured")
+                return False
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28"
+            }
+            
+            # Query all skills from Notion
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.notion.com/v1/databases/{NOTION_SKILLS_DATABASE_ID}/query",
+                    headers=headers,
+                    json={},
+                    timeout=30.0
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Failed to query Notion: {response.status_code}")
+                    return False
+                
+                data = response.json()
+                pages = data.get("results", [])
+                
+                # Check if any skill has progress > 0
+                for page in pages:
+                    props = page.get("properties", {})
+                    
+                    # Check all content types for progress
+                    for content_type in ["Lectures", "Practice hours", "Videos", "Films ", "VC Lectures"]:
+                        if content_type in props:
+                            value = props[content_type].get("number", 0)
+                            if value and value > 0:
+                                return True
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error checking Notion progress: {e}")
+            return False
+    
     async def check_notion_progress_and_update_streak(self) -> bool:
         """Check Notion for any progress today and update streak if found"""
         try:
