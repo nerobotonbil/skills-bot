@@ -175,7 +175,7 @@ class ProductivityModule(BaseModule):
                     
                     # Only update if not already updated today
                     if last_practice != today:
-                        self.record_practice()
+                        self.record_practice(skill_name="Daily Practice", duration_mins=0)
                         logger.info("Streak updated based on Notion progress")
                         return True
                 
