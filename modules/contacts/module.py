@@ -75,9 +75,12 @@ class ContactsModule(BaseModule):
                 )
                 return True
             else:
+                # Get detailed error from last save attempt
+                error_detail = getattr(self, '_last_error', 'Unknown error')
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text="❌ Ошибка при сохранении контакта в Notion"
+                    text=f"❌ Ошибка при сохранении контакта в Notion\n\n"
+                         f"Детали: {error_detail}"
                 )
                 return False
                 
@@ -264,8 +267,10 @@ class ContactsModule(BaseModule):
                         logger.error(f"Failed to save contact after retry: {response.status_code} - {response.text}")
                         return False
                 else:
+                    error_msg = f"Status {response.status_code}: {response.text[:200]}"
                     logger.error(f"Failed to save contact to Notion: {response.status_code} - {response.text}")
                     logger.error(f"Request data: {json.dumps(notion_data, indent=2)}")
+                    self._last_error = error_msg
                     return False
             
         except Exception as e:
