@@ -111,7 +111,6 @@ class ContactsModule(BaseModule):
 - followup: дата последнего фоловапа (формат YYYY-MM-DD, если не было - null)
 - warm_word: теплые слова, что запомнил из диалога
 - industry: индустрия работы человека (точно как упомянуто в тексте, например: lawyer, crypto, spirituality, tech, finance и т.д. Записывай ТОЧНО то слово, которое использовал пользователь)
-- advice: персональный совет для второй встречи (ВАЖНО: давай совет ТОЛЬКО если видишь ошибку, упущение или важный момент, который пользователь не учёл. Если всё правильно понято и сделано - оставь поле пустым или null. Совет должен быть конкретным: как подготовиться к следующей встрече, какие ценности человека уважать, с какой точки зрения посмотреть на него, как продолжить общение)
 
 Верни JSON с этими полями. Если какое-то поле не найдено, не включай его в ответ (кроме name - оно обязательно).
 Отвечай ТОЛЬКО валидным JSON, без дополнительного текста."""
@@ -224,11 +223,7 @@ class ContactsModule(BaseModule):
                     "date": {"start": data["followup"]}
                 }
             
-            # Add advice if exists
-            if data.get("advice"):
-                properties["Advice"] = {
-                    "rich_text": [{"text": {"content": data["advice"]}}]
-                }
+            # Note: Advice field removed as it doesn't exist in Notion database
             
             # Create page in Notion
             notion_data = {
