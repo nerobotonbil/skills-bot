@@ -140,6 +140,39 @@ class WhoopClient:
             logger.error(f"Error fetching sleep: {e}")
             return None
     
+    def get_latest_workout(self) -> Optional[Dict[str, Any]]:
+        """Get latest workout data (v2 API)"""
+        if not self.available:
+            return None
+        
+        try:
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now
+            
+            response = requests.get(
+                f"{WHOOP_API_BASE}/v2/activity/workout",
+                headers=self._get_headers(),
+                params={
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "limit": 10  # Get up to 10 workouts today
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get("records", [])
+                return records if records else None
+            
+            return None
+        
+        except Exception as e:
+            logger.error(f"Error fetching workout: {e}")
+            return None
+    
     def get_latest_cycle(self) -> Optional[Dict[str, Any]]:
         """Get latest physiological cycle (Strain data) for TODAY"""
         if not self.available:
@@ -192,12 +225,17 @@ class WhoopClient:
             cycle = self.get_latest_cycle()
             logger.warning(f"Cycle data received: {cycle is not None}")
             
+            logger.warning("🔄 Fetching WHOOP workout data...")
+            workouts = self.get_latest_workout()
+            logger.warning(f"Workout data received: {workouts is not None}")
+            
             result = {
                 "available": True,
                 "timestamp": datetime.now().isoformat(),
                 "recovery": None,
                 "sleep": None,
-                "strain": None
+                "strain": None,
+                "workouts": None
             }
             
             # Parse recovery data
@@ -214,12 +252,39 @@ class WhoopClient:
             
             # Parse sleep data
             if sleep:
+                score = sleep.get("score", {})
+                stage_summary = score.get("stage_summary", {})
+                sleep_needed = score.get("sleep_needed", {})
+                
+                # Convert milliseconds to hours for readability
+                def ms_to_hours(ms):
+                    return round(ms / 3600000, 2) if ms else 0
+                
                 result["sleep"] = {
-                    "performance_percentage": sleep.get("score", {}).get("stage_summary", {}).get("total_in_bed_time_milli"),
-                    "total_sleep_time_hours": sleep.get("score", {}).get("stage_summary", {}).get("total_sleep_time_milli", 0) / 3600000,
-                    "sleep_efficiency": sleep.get("score", {}).get("sleep_efficiency_percentage"),
-                    "respiratory_rate": sleep.get("score", {}).get("respiratory_rate"),
-                    "stages": sleep.get("score", {}).get("stage_summary")
+                    "performance_percentage": score.get("sleep_performance_percentage"),
+                    "consistency_percentage": score.get("sleep_consistency_percentage"),
+                    "efficiency_percentage": score.get("sleep_efficiency_percentage"),
+                    "respiratory_rate": score.get("respiratory_rate"),
+                    
+                    # Total times
+                    "total_in_bed_hours": ms_to_hours(stage_summary.get("total_in_bed_time_milli")),
+                    "total_sleep_hours": ms_to_hours(stage_summary.get("total_sleep_time_milli")),
+                    "total_awake_hours": ms_to_hours(stage_summary.get("total_awake_time_milli")),
+                    
+                    # Sleep stages
+                    "light_sleep_hours": ms_to_hours(stage_summary.get("total_light_sleep_time_milli")),
+                    "deep_sleep_hours": ms_to_hours(stage_summary.get("total_slow_wave_sleep_time_milli")),
+                    "rem_sleep_hours": ms_to_hours(stage_summary.get("total_rem_sleep_time_milli")),
+                    
+                    # Sleep quality metrics
+                    "sleep_cycles": stage_summary.get("sleep_cycle_count"),
+                    "disturbances": stage_summary.get("disturbance_count"),
+                    
+                    # Sleep need
+                    "baseline_need_hours": ms_to_hours(sleep_needed.get("baseline_milli")),
+                    "debt_need_hours": ms_to_hours(sleep_needed.get("need_from_sleep_debt_milli")),
+                    "strain_need_hours": ms_to_hours(sleep_needed.get("need_from_recent_strain_milli")),
+                    "nap_need_hours": ms_to_hours(sleep_needed.get("need_from_recent_nap_milli"))
                 }
             
             # Parse cycle/strain data  
@@ -232,9 +297,34 @@ class WhoopClient:
                     "max_heart_rate": score.get("max_heart_rate")
                 }
             
+            # Parse workout data
+            if workouts:
+                workout_list = []
+                for workout in workouts:
+                    score = workout.get("score", {})
+                    zone_duration = score.get("zone_duration", {})
+                    
+                    workout_list.append({
+                        "sport_name": workout.get("sport_name", "Unknown"),
+                        "strain": score.get("strain"),
+                        "average_heart_rate": score.get("average_heart_rate"),
+                        "max_heart_rate": score.get("max_heart_rate"),
+                        "kilojoules": score.get("kilojoule"),
+                        "distance_meters": score.get("distance_meter"),
+                        "altitude_gain_meters": score.get("altitude_gain_meter"),
+                        "zone_0_hours": round(zone_duration.get("zone_zero_milli", 0) / 3600000, 2),
+                        "zone_1_hours": round(zone_duration.get("zone_one_milli", 0) / 3600000, 2),
+                        "zone_2_hours": round(zone_duration.get("zone_two_milli", 0) / 3600000, 2),
+                        "zone_3_hours": round(zone_duration.get("zone_three_milli", 0) / 3600000, 2),
+                        "zone_4_hours": round(zone_duration.get("zone_four_milli", 0) / 3600000, 2),
+                        "zone_5_hours": round(zone_duration.get("zone_five_milli", 0) / 3600000, 2),
+                    })
+                
+                result["workouts"] = workout_list
+            
             # Check if we have ANY data
-            has_data = any([result["recovery"], result["sleep"], result["strain"]])
-            logger.warning(f"✅ Comprehensive data compiled: recovery={result['recovery'] is not None}, sleep={result['sleep'] is not None}, strain={result['strain'] is not None}")
+            has_data = any([result["recovery"], result["sleep"], result["strain"], result["workouts"]])
+            logger.warning(f"✅ Comprehensive data compiled: recovery={result['recovery'] is not None}, sleep={result['sleep'] is not None}, strain={result['strain'] is not None}, workouts={result['workouts'] is not None}")
             
             if not has_data:
                 logger.warning("❌ No WHOOP data available for today - all metrics are None")
