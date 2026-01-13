@@ -535,122 +535,64 @@ class ReminderService:
             )
         except Exception as e:
             logger.error(f"Ошибка отправки произвольного напоминания: {e}")
+    
+    async def send_sunday_afternoon_reminder(self) -> None:
+        """
+        Отправляет воскресное напоминание в 15:00.
+        Второй раунд задач для выходного дня.
+        """
+        if not self._app or not self._chat_id:
+            logger.warning("Не могу отправить воскресное напоминание")
+            return
+        
+        try:
+            from modules.whoop_integration import get_whoop_client
+            from modules.task_recommender import get_task_recommender
+            from modules.notion.module import notion_module
+            import random
+            
+            whoop_client = get_whoop_client()
+            recommender = get_task_recommender()
+            
+            message_parts = ["🌞 **Воскресный бонус!**\n"]
+            message_parts.append("Вторая половина дня - отличное время для дополнительных задач!\n")
+            
+            if whoop_client and whoop_client.available:
+                whoop_data = whoop_client.get_comprehensive_health_data()
+                if whoop_data.get("available"):
+                    energy_data = recommender.calculate_energy_level(whoop_data)
+                    task_rec = recommender.recommend_task_difficulty(energy_data)
+                    weekend_boost = recommender.get_weekend_boost_factor()
+                    boosted_tasks = int(task_rec['max_tasks'] * weekend_boost)
+                    
+                    message_parts.append(f"\n💪 **Энергия**: {energy_data.get('energy_level', 'unknown').upper()}")
+                    message_parts.append(f"\n📋 **Рекомендации**:")
+                    message_parts.append(f"• Дополнительных задач: **{boosted_tasks}**")
+                    message_parts.append(f"• Сложность: **{task_rec['recommended_difficulty']}**")
+            
+            # Get random skills
+            try:
+                skills = await notion_module.refresh_skills_cache()
+                if skills:
+                    sample_skills = random.sample(skills, min(3, len(skills)))
+                    message_parts.append("\n\n🎯 **Навыки для прокачки**:")
+                    for skill in sample_skills:
+                        message_parts.append(f"• {skill.get('name', 'Unknown')}")
+            except Exception as e:
+                logger.warning(f"Could not fetch skills: {e}")
+            
+            message_parts.append("\n\n🚀 Используй выходной максимально!")
+            
+            await self._app.bot.send_message(
+                chat_id=self._chat_id,
+                text="\n".join(message_parts),
+                parse_mode='Markdown'
+            )
+            logger.info("Воскресное напоминание отправлено")
+            
+        except Exception as e:
+            logger.error(f"Ошибка воскресного напоминания: {e}")
 
 
 # Глобальный экземпляр сервиса
 reminder_service = ReminderService()
-async def send_sunday_afternoon_reminder(self) -> None:
-    """
-    Отправляет воскресное напоминание в 15:00.
-    Второй раунд задач для выходного дня с повышенной энергией.
-    """
-    if not self._app or not self._chat_id:
-        logger.warning("Не могу отправить воскресное напоминание: app или chat_id не установлены")
-        return
-    
-    try:
-        # Get WHOOP data
-        from modules.whoop_integration import get_whoop_client
-        from modules.task_recommender import get_task_recommender
-        from modules.notion.module import notion_module
-        from modules.learning.module import learning_module
-        
-        whoop_client = get_whoop_client()
-        recommender = get_task_recommender()
-        
-        message_parts = ["🌞 **Воскресный бонус! Второй раунд задач**\n"]
-        message_parts.append("В выходные у тебя больше энергии - можно сделать больше!\n")
-        
-        if whoop_client and whoop_client.available:
-            # Get WHOOP data
-            whoop_data = whoop_client.get_comprehensive_health_data()
-            
-            if whoop_data.get("available"):
-                # Calculate energy level
-                energy_data = recommender.calculate_energy_level(whoop_data)
-                
-                recovery = whoop_data.get("recovery", {})
-                rec_score = recovery.get("score") if recovery else None
-                
-                # Show current energy
-                message_parts.append("⚡ **Текущая энергия:**")
-                energy_level = energy_data.get("energy_level")
-                if energy_level == "high":
-                    message_parts.append("🟢 **ВЫСОКАЯ** - отлично! Можешь взяться за сложные курсы!")
-                elif energy_level == "medium":
-                    message_parts.append("🟡 **СРЕДНЯЯ** - хорошо для обучения и практики")
-                else:
-                    message_parts.append("🔴 **НИЗКАЯ** - лучше отдохни и восстановись")
-                
-                if rec_score:
-                    emoji = "🟢" if rec_score >= 67 else "🟡" if rec_score >= 34 else "🔴"
-                    message_parts.append(f"{emoji} Recovery: **{rec_score}%**")
-                
-                # Task recommendations with weekend boost
-                task_rec = recommender.recommend_task_difficulty(energy_data)
-                weekend_boost = recommender.get_weekend_boost_factor()
-                
-                boosted_tasks = int(task_rec['max_tasks'] * weekend_boost)
-                
-                message_parts.append("\n📋 **Рекомендации на вторую половину дня:**")
-                message_parts.append(f"• Дополнительных задач: **{boosted_tasks}**")
-                message_parts.append(f"• Сложность: **{task_rec['recommended_difficulty']}**")
-                message_parts.append(f"• Фокус: {task_rec['focus_duration_hours']}ч")
-                
-                # Suggest specific activities
-                if energy_level == "high":
-                    message_parts.append("\n💡 **Идеи для воскресенья:**")
-                    message_parts.append("• Пройди 1-2 модуля курса")
-                    message_parts.append("• Изучи новый сложный навык")
-                    message_parts.append("• Сделай challenging проект")
-                    message_parts.append("• Прокачай самые важные скиллы")
-                elif energy_level == "medium":
-                    message_parts.append("\n💡 **Идеи для воскресенья:**")
-                    message_parts.append("• Посмотри обучающие видео")
-                    message_parts.append("• Попрактикуй знакомые навыки")
-                    message_parts.append("• Сделай несколько средних задач")
-                else:
-                    message_parts.append("\n💡 **Идеи для воскресенья:**")
-                    message_parts.append("• Легкое чтение по интересам")
-                    message_parts.append("• Планирование на неделю")
-                    message_parts.append("• Отдых и восстановление")
-        
-        else:
-            message_parts.append("⚠️ WHOOP не подключен")
-            message_parts.append("\nНо это воскресенье - отличный день для дополнительных задач!")
-        
-        # Get random skills for inspiration
-        try:
-            skills = await notion_module.refresh_skills_cache()
-            if skills:
-                import random
-                sample_skills = random.sample(skills, min(3, len(skills)))
-                message_parts.append("\n🎯 **Навыки для прокачки:**")
-                for skill in sample_skills:
-                    message_parts.append(f"• {skill.get('name', 'Unknown')}")
-        except Exception as e:
-            logger.warning(f"Could not fetch skills: {e}")
-        
-        message_parts.append("\n🚀 Используй выходной максимально эффективно!")
-        
-        message = "\n".join(message_parts)
-        
-        await self._app.bot.send_message(
-            chat_id=self._chat_id,
-            text=message,
-            parse_mode='Markdown'
-        )
-        
-        logger.info("Воскресное напоминание (15:00) отправлено")
-        
-    except Exception as e:
-        logger.error(f"Ошибка отправки воскресного напоминания: {e}", exc_info=True)
-        # Fallback to simple message
-        try:
-            await self._app.bot.send_message(
-                chat_id=self._chat_id,
-                text="🌞 **Воскресный бонус!**\n\nВторая половина дня - отличное время для дополнительных задач!\n\nИспользуй выходной максимально эффективно! 🚀",
-                parse_mode='Markdown'
-            )
-        except Exception as e2:
-            logger.error(f"Ошибка отправки fallback воскресного сообщения: {e2}")

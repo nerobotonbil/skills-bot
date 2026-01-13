@@ -472,6 +472,15 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
                 context += f"Calories Burned: {strain.get('kilojoules', 0) * 0.239:.0f} kcal\n"
                 context += f"Average Heart Rate: {strain.get('average_heart_rate')} bpm\n"
             
+            # Add current time context
+            from datetime import datetime
+            import pytz
+            from config.settings import TIMEZONE
+            
+            tz = pytz.timezone(TIMEZONE)
+            now = datetime.now(tz)
+            context += f"\nCurrent Time: {now.strftime('%H:%M')} ({now.strftime('%A, %B %d, %Y')})\n"
+            
             context += "\n=== INSTRUCTIONS ===\n"
             context += "Use this health data to answer questions about:\n"
             context += "- Sleep quality and recommendations\n"
@@ -485,6 +494,16 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             context += "- Recovery 0-33%: Low, rest and recovery needed\n"
             context += "- HRV >50ms: Good, <30ms: Stressed/fatigued\n"
             context += "- Sleep efficiency >85%: Good, <75%: Poor\n"
+            context += "\n=== SLEEP TIME CALCULATION ===\n"
+            context += "When user asks about sleep time:\n"
+            context += "1. ALWAYS calculate actual available sleep time from current time to wake time\n"
+            context += "2. Compare with WHOOP recommended sleep (typically 6.5-8 hours based on recovery)\n"
+            context += "3. Show BOTH numbers clearly:\n"
+            context += "   - 'You have X hours Y minutes until [wake time]'\n"
+            context += "   - 'WHOOP recommends [recommended] hours based on your recovery'\n"
+            context += "4. Then give verdict: 'That's enough/not enough/perfect for good recovery'\n"
+            context += "\nExample: If current time is 00:20 and wake time is 8:40:\n"
+            context += "'You have 8 hours 20 minutes until 8:40 AM. WHOOP recommends 6.5-7 hours based on your 51% recovery. That's more than enough - you'll wake up well-rested!'\n"
             
             return context
         
