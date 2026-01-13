@@ -156,6 +156,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 @owner_only
+async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает chat_id пользователя для настройки Railway"""
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    
+    message = (
+        f"🆔 **Твои ID:**\n\n"
+        f"Chat ID: `{chat_id}`\n"
+        f"User ID: `{user_id}`\n\n"
+        f"**Для настройки напоминаний в Railway:**\n"
+        f"Добавь переменную окружения:\n"
+        f"• Имя: `TELEGRAM_CHAT_ID`\n"
+        f"• Значение: `{chat_id}`"
+    )
+    
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
+@owner_only
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает последние логи"""
     try:
@@ -302,6 +321,7 @@ def main() -> None:
     # Регистрируем базовые обработчики
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("myid", myid_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CommandHandler("modules", modules_command))
     

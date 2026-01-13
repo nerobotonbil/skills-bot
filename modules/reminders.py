@@ -44,7 +44,20 @@ class ReminderService:
     
     def __init__(self):
         self._app: Optional[Application] = None
-        self._chat_id: Optional[int] = self._load_chat_id()
+        # Try to load chat_id from environment first, then from file
+        self._chat_id: Optional[int] = self._load_chat_id_from_env() or self._load_chat_id()
+    
+    def _load_chat_id_from_env(self) -> Optional[int]:
+        """Loads chat_id from environment variable (Railway)"""
+        try:
+            chat_id_str = os.getenv("TELEGRAM_CHAT_ID")
+            if chat_id_str:
+                chat_id = int(chat_id_str)
+                logger.info(f"Chat ID loaded from environment: {chat_id}")
+                return chat_id
+        except Exception as e:
+            logger.warning(f"Error loading chat_id from environment: {e}")
+        return None
     
     def _load_chat_id(self) -> Optional[int]:
         """Загружает chat_id из файла"""
