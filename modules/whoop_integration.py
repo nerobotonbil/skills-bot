@@ -78,6 +78,124 @@ class WhoopClient:
         if recovery and "score" in recovery:
             return recovery["score"].get("recovery_score")
         return None
+    
+    def get_latest_sleep(self) -> Optional[Dict[str, Any]]:
+        """Get latest sleep data"""
+        if not self.available:
+            return None
+        
+        try:
+            end = datetime.now()
+            start = end - timedelta(days=2)
+            
+            response = requests.get(
+                f"{WHOOP_API_BASE}/v1/activity/sleep",
+                headers=self.headers,
+                params={
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "limit": 1
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get("records", [])
+                return records[0] if records else None
+            
+            return None
+        
+        except Exception as e:
+            logger.error(f"Error fetching sleep: {e}")
+            return None
+    
+    def get_latest_cycle(self) -> Optional[Dict[str, Any]]:
+        """Get latest physiological cycle (Strain data)"""
+        if not self.available:
+            return None
+        
+        try:
+            end = datetime.now()
+            start = end - timedelta(days=1)
+            
+            response = requests.get(
+                f"{WHOOP_API_BASE}/v1/cycle",
+                headers=self.headers,
+                params={
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "limit": 1
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get("records", [])
+                return records[0] if records else None
+            
+            return None
+        
+        except Exception as e:
+            logger.error(f"Error fetching cycle: {e}")
+            return None
+    
+    def get_comprehensive_health_data(self) -> Dict[str, Any]:
+        """Get all health data for AI assistant context"""
+        if not self.available:
+            return {"available": False}
+        
+        try:
+            recovery = self.get_latest_recovery()
+            sleep = self.get_latest_sleep()
+            cycle = self.get_latest_cycle()
+            
+            result = {
+                "available": True,
+                "timestamp": datetime.now().isoformat(),
+                "recovery": None,
+                "sleep": None,
+                "strain": None
+            }
+            
+            # Parse recovery data
+            if recovery and "score" in recovery:
+                score = recovery["score"]
+                result["recovery"] = {
+                    "score": score.get("recovery_score"),
+                    "resting_heart_rate": score.get("resting_heart_rate"),
+                    "hrv_rmssd": score.get("hrv_rmssd_milli"),
+                    "spo2": score.get("spo2_percentage"),
+                    "skin_temp_celsius": score.get("skin_temp_celsius"),
+                    "user_calibrating": score.get("user_calibrating", False)
+                }
+            
+            # Parse sleep data
+            if sleep:
+                result["sleep"] = {
+                    "performance_percentage": sleep.get("score", {}).get("stage_summary", {}).get("total_in_bed_time_milli"),
+                    "total_sleep_time_hours": sleep.get("score", {}).get("stage_summary", {}).get("total_sleep_time_milli", 0) / 3600000,
+                    "sleep_efficiency": sleep.get("score", {}).get("sleep_efficiency_percentage"),
+                    "respiratory_rate": sleep.get("score", {}).get("respiratory_rate"),
+                    "stages": sleep.get("score", {}).get("stage_summary")
+                }
+            
+            # Parse cycle/strain data  
+            if cycle and "score" in cycle:
+                score = cycle["score"]
+                result["strain"] = {
+                    "day_strain": score.get("strain"),
+                    "kilojoules": score.get("kilojoule"),
+                    "average_heart_rate": score.get("average_heart_rate"),
+                    "max_heart_rate": score.get("max_heart_rate")
+                }
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error getting comprehensive health data: {e}")
+            return {"available": False, "error": str(e)}
 
 
 def get_whoop_recommendation(recovery_score: Optional[int]) -> str:

@@ -384,10 +384,18 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             )
     
     async def _get_ai_response(self, history: List[Dict]) -> Optional[str]:
-        """Gets response from OpenAI API"""
+        """Gets response from OpenAI API with WHOOP health context"""
         try:
+            # Get WHOOP health data if available
+            whoop_context = self._get_whoop_context()
+            
+            # Build system prompt with WHOOP data
+            system_prompt = self._system_prompt
+            if whoop_context:
+                system_prompt += "\n\n" + whoop_context
+            
             messages = [
-                {"role": "system", "content": self._system_prompt}
+                {"role": "system", "content": system_prompt}
             ] + history
             
             response = self._client.chat.completions.create(
@@ -402,6 +410,65 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             return None
+    
+    def _get_whoop_context(self) -> str:
+        """Get WHOOP health data as context for AI"""
+        try:
+            from modules.whoop_integration import get_whoop_client
+            
+            client = get_whoop_client()
+            if not client:
+                return ""
+            
+            health_data = client.get_comprehensive_health_data()
+            if not health_data.get("available"):
+                return ""
+            
+            # Format health data for AI context
+            context = "\n=== USER HEALTH DATA (WHOOP) ===\n"
+            
+            # Recovery data
+            if health_data.get("recovery"):
+                rec = health_data["recovery"]
+                context += f"\nRecovery Score: {rec.get('score')}% (0-100%)\n"
+                context += f"Resting Heart Rate: {rec.get('resting_heart_rate')} bpm\n"
+                context += f"HRV (Heart Rate Variability): {rec.get('hrv_rmssd'):.1f} ms\n"
+                context += f"Blood Oxygen (SpO2): {rec.get('spo2'):.1f}%\n"
+                context += f"Skin Temperature: {rec.get('skin_temp_celsius'):.1f}°C\n"
+            
+            # Sleep data
+            if health_data.get("sleep"):
+                sleep = health_data["sleep"]
+                context += f"\nSleep Duration: {sleep.get('total_sleep_time_hours', 0):.1f} hours\n"
+                context += f"Sleep Efficiency: {sleep.get('sleep_efficiency', 0):.1f}%\n"
+                context += f"Respiratory Rate: {sleep.get('respiratory_rate', 0):.1f} breaths/min\n"
+            
+            # Strain data
+            if health_data.get("strain"):
+                strain = health_data["strain"]
+                context += f"\nDay Strain: {strain.get('day_strain', 0):.1f} (0-21 scale)\n"
+                context += f"Calories Burned: {strain.get('kilojoules', 0) * 0.239:.0f} kcal\n"
+                context += f"Average Heart Rate: {strain.get('average_heart_rate')} bpm\n"
+            
+            context += "\n=== INSTRUCTIONS ===\n"
+            context += "Use this health data to answer questions about:\n"
+            context += "- Sleep quality and recommendations\n"
+            context += "- Recovery and readiness for activity\n"
+            context += "- When to sleep, work out, or rest\n"
+            context += "- Why user feels tired or energized\n"
+            context += "- Optimal times for learning/practice based on recovery\n"
+            context += "\nInterpretation guidelines:\n"
+            context += "- Recovery 67-100%: Excellent, ready for intense activity\n"
+            context += "- Recovery 34-66%: Moderate, light activity recommended\n"
+            context += "- Recovery 0-33%: Low, rest and recovery needed\n"
+            context += "- HRV >50ms: Good, <30ms: Stressed/fatigued\n"
+            context += "- Sleep efficiency >85%: Good, <75%: Poor\n"
+            
+            return context
+        
+        except Exception as e:
+            logger.warning(f"Could not get WHOOP context: {e}")
+            return ""
     
     def clear_history(self, user_id: int) -> None:
         """Clears conversation history for user"""
