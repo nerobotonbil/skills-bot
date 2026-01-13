@@ -1,8 +1,9 @@
 # Telegram Bot
 python-telegram-bot[job-queue]==21.0
 
-# HTTP клиент для Notion API
+# HTTP клиент для Notion API и WHOOP
 httpx==0.27.0
+requests==2.31.0
 
 # Планировщик задач
 APScheduler==3.10.4
