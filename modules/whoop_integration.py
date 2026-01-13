@@ -55,6 +55,21 @@ class WhoopClient:
                 headers=self._get_headers(),
                 timeout=5
             )
+            
+            # If 401, try to refresh token and retry
+            if response.status_code == 401 and TOKEN_MANAGER_AVAILABLE:
+                logger.warning("⚠️ WHOOP token expired (401), attempting refresh...")
+                from .whoop_token_manager import get_token_manager
+                manager = get_token_manager()
+                if manager and manager.force_refresh():
+                    logger.info("✅ Token refreshed, retrying API call...")
+                    # Retry with new token
+                    response = requests.get(
+                        f"{WHOOP_API_BASE}/v2/user/profile/basic",
+                        headers=self._get_headers(),
+                        timeout=5
+                    )
+            
             return response.status_code == 200
         except Exception as e:
             logger.warning(f"WHOOP API not available: {e}")

@@ -34,7 +34,15 @@ class WhoopTokenManager:
         self.client_secret = WHOOP_CLIENT_SECRET
         self.refresh_token = WHOOP_REFRESH_TOKEN
         self.access_token = _current_access_token
-        self.expires_at = None
+        
+        # Initialize expiration time
+        # Assume current token expires in 1 hour if we don't know
+        if self.access_token:
+            self.expires_at = datetime.now() + timedelta(hours=1)
+            logger.info(f"⏰ Token expiration initialized to: {self.expires_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            self.expires_at = None
+        
         self.lock = threading.Lock()
         
         # Check if credentials are available
