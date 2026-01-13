@@ -38,6 +38,8 @@ from modules.productivity.module import productivity_module
 from modules.contacts.module import contacts_module
 from modules.reminders import reminder_service
 from modules.logging_handler import telegram_handler, get_recent_logs
+from modules.whoop.commands import whoop_command, recovery_command, sleep_command, strain_command
+from modules.whoop.recommend_command import recommend_with_whoop_command
 
 # Logging setup
 logging.basicConfig(
@@ -100,6 +102,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 /streak - твоя серия
 /freeze - заморозка серии
 
+Команды - здоровье:
+/whoop - WHOOP метрики
+/recovery - восстановление
+/sleep - анализ сна
+
 Команды - благодарность:
 /gratitude - записать благодарность
 /review - месячный обзор с AI
@@ -138,6 +145,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 Продуктивность:
 /streak - твоя серия
 /freeze - заморозка серии
+
+Здоровье (WHOOP):
+/whoop - все метрики
+/recovery - восстановление
+/sleep - анализ сна
+/strain - нагрузка за день
 
 Благодарность:
 /gratitude - записать
@@ -312,6 +325,13 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CommandHandler("modules", modules_command))
+    
+    # WHOOP commands
+    application.add_handler(CommandHandler("whoop", whoop_command))
+    application.add_handler(CommandHandler("recovery", recovery_command))
+    application.add_handler(CommandHandler("sleep", sleep_command))
+    application.add_handler(CommandHandler("strain", strain_command))
+    application.add_handler(CommandHandler("recommend", recommend_with_whoop_command))
     
     # Регистрируем модули в приложении
     module_manager.set_application(application)
