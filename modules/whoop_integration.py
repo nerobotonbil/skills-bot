@@ -148,12 +148,21 @@ class WhoopClient:
     def get_comprehensive_health_data(self) -> Dict[str, Any]:
         """Get all health data for AI assistant context"""
         if not self.available:
+            logger.warning("WHOOP API not available")
             return {"available": False}
         
         try:
+            logger.info("Fetching recovery data...")
             recovery = self.get_latest_recovery()
+            logger.info(f"Recovery data: {recovery is not None}")
+            
+            logger.info("Fetching sleep data...")
             sleep = self.get_latest_sleep()
+            logger.info(f"Sleep data: {sleep is not None}")
+            
+            logger.info("Fetching cycle data...")
             cycle = self.get_latest_cycle()
+            logger.info(f"Cycle data: {cycle is not None}")
             
             result = {
                 "available": True,
@@ -194,6 +203,14 @@ class WhoopClient:
                     "average_heart_rate": score.get("average_heart_rate"),
                     "max_heart_rate": score.get("max_heart_rate")
                 }
+            
+            # Check if we have ANY data
+            has_data = any([result["recovery"], result["sleep"], result["strain"]])
+            logger.info(f"Comprehensive data compiled: recovery={result['recovery'] is not None}, sleep={result['sleep'] is not None}, strain={result['strain'] is not None}")
+            
+            if not has_data:
+                logger.warning("No WHOOP data available for today")
+                return {"available": False, "reason": "No data for today"}
             
             return result
         

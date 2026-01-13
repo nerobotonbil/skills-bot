@@ -434,10 +434,15 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             
             client = get_whoop_client()
             if not client:
+                logger.info("WHOOP client not available (no token)")
                 return ""
             
+            logger.info("Fetching WHOOP health data...")
             health_data = client.get_comprehensive_health_data()
+            logger.info(f"WHOOP data received: available={health_data.get('available')}, keys={list(health_data.keys())}")
+            
             if not health_data.get("available"):
+                logger.warning("WHOOP data not available")
                 return ""
             
             # Format health data for AI context
