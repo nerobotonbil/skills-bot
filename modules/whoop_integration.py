@@ -152,17 +152,17 @@ class WhoopClient:
             return {"available": False}
         
         try:
-            logger.info("Fetching recovery data...")
+            logger.warning("🔄 Fetching WHOOP recovery data...")
             recovery = self.get_latest_recovery()
-            logger.info(f"Recovery data: {recovery is not None}")
+            logger.warning(f"Recovery data received: {recovery is not None}")
             
-            logger.info("Fetching sleep data...")
+            logger.warning("🔄 Fetching WHOOP sleep data...")
             sleep = self.get_latest_sleep()
-            logger.info(f"Sleep data: {sleep is not None}")
+            logger.warning(f"Sleep data received: {sleep is not None}")
             
-            logger.info("Fetching cycle data...")
+            logger.warning("🔄 Fetching WHOOP cycle data...")
             cycle = self.get_latest_cycle()
-            logger.info(f"Cycle data: {cycle is not None}")
+            logger.warning(f"Cycle data received: {cycle is not None}")
             
             result = {
                 "available": True,
@@ -206,10 +206,10 @@ class WhoopClient:
             
             # Check if we have ANY data
             has_data = any([result["recovery"], result["sleep"], result["strain"]])
-            logger.info(f"Comprehensive data compiled: recovery={result['recovery'] is not None}, sleep={result['sleep'] is not None}, strain={result['strain'] is not None}")
+            logger.warning(f"✅ Comprehensive data compiled: recovery={result['recovery'] is not None}, sleep={result['sleep'] is not None}, strain={result['strain'] is not None}")
             
             if not has_data:
-                logger.warning("No WHOOP data available for today")
+                logger.warning("❌ No WHOOP data available for today - all metrics are None")
                 return {"available": False, "reason": "No data for today"}
             
             return result
@@ -266,16 +266,16 @@ def get_whoop_client() -> Optional[WhoopClient]:
         WhoopClient instance or None if token not set
     """
     if not WHOOP_ACCESS_TOKEN:
-        logger.debug("WHOOP_ACCESS_TOKEN not set, WHOOP integration disabled")
+        logger.warning("⚠️ WHOOP_ACCESS_TOKEN not set in environment variables - WHOOP integration disabled")
         return None
     
     try:
         client = WhoopClient(WHOOP_ACCESS_TOKEN)
         if client.available:
-            logger.info("WHOOP integration enabled")
+            logger.warning("✅ WHOOP integration enabled and API available")
             return client
         else:
-            logger.warning("WHOOP token set but API unavailable")
+            logger.warning("❌ WHOOP token set but API unavailable - check token validity")
             return None
     except Exception as e:
         logger.error(f"Error initializing WHOOP client: {e}")
