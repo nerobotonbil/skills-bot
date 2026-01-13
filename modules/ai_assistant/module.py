@@ -313,7 +313,17 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             await self._gratitude_module.handle_voice_gratitude(update, context, transcribed_text)
             return
         
-        # SECOND: Check if this is an advice request for last saved contact
+        # SECOND: Check if this is an idea to save (MOVED UP - higher priority)
+        if detect_idea_intent(transcribed_text):
+            logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
+            response = await self._save_idea_directly(transcribed_text, update)
+            await update.message.reply_text(
+                f"🎤 *Recognized:*\n_{transcribed_text}_\n\n{response}",
+                parse_mode="Markdown"
+            )
+            return
+        
+        # THIRD: Check if this is an advice request for last saved contact
         if self._contacts_module and self._contacts_module.is_advice_request(transcribed_text):
             logger.info(f"Advice request detected in voice message: {transcribed_text[:50]}...")
             await update.message.reply_text(
@@ -323,7 +333,7 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             await self._contacts_module.generate_advice(transcribed_text, chat_id, context)
             return
         
-        # THIRD: Check if this is a contact to save
+        # FOURTH: Check if this is a contact to save
         if self._contacts_module and self._contacts_module.is_contact_related(transcribed_text):
             logger.info(f"Contact detected in voice message: {transcribed_text[:50]}...")
             await update.message.reply_text(
@@ -331,16 +341,6 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
                 parse_mode="Markdown"
             )
             await self._contacts_module.process_contact_voice(transcribed_text, chat_id, context)
-            return
-        
-        # FOURTH: Check if this is an idea to save
-        if detect_idea_intent(transcribed_text):
-            logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
-            response = await self._save_idea_directly(transcribed_text, update)
-            await update.message.reply_text(
-                f"🎤 *Recognized:*\n_{transcribed_text}_\n\n{response}",
-                parse_mode="Markdown"
-            )
             return
         
         # Otherwise, process with AI
