@@ -41,14 +41,15 @@ class WhoopClient:
             return False
     
     def get_latest_recovery(self) -> Optional[Dict[str, Any]]:
-        """Get latest recovery data"""
+        """Get latest recovery data for TODAY"""
         if not self.available:
             return None
         
         try:
-            # Get today's date range
-            end = datetime.now()
-            start = end - timedelta(days=1)
+            # Get TODAY's date range (from midnight to now)
+            now = datetime.now()
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now
             
             response = requests.get(
                 f"{WHOOP_API_BASE}/v1/recovery",
@@ -80,13 +81,14 @@ class WhoopClient:
         return None
     
     def get_latest_sleep(self) -> Optional[Dict[str, Any]]:
-        """Get latest sleep data"""
+        """Get latest sleep data for TODAY"""
         if not self.available:
             return None
         
         try:
+            # Get sleep from last 36 hours (to catch last night's sleep)
             end = datetime.now()
-            start = end - timedelta(days=2)
+            start = end - timedelta(hours=36)
             
             response = requests.get(
                 f"{WHOOP_API_BASE}/v1/activity/sleep",
@@ -111,13 +113,15 @@ class WhoopClient:
             return None
     
     def get_latest_cycle(self) -> Optional[Dict[str, Any]]:
-        """Get latest physiological cycle (Strain data)"""
+        """Get latest physiological cycle (Strain data) for TODAY"""
         if not self.available:
             return None
         
         try:
-            end = datetime.now()
-            start = end - timedelta(days=1)
+            # Get TODAY's cycle (from midnight to now)
+            now = datetime.now()
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now
             
             response = requests.get(
                 f"{WHOOP_API_BASE}/v1/cycle",
