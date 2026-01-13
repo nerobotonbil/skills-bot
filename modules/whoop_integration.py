@@ -9,6 +9,14 @@ import requests
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
+# Import token manager for automatic token refresh
+try:
+    from .whoop_token_manager import get_current_access_token
+    TOKEN_MANAGER_AVAILABLE = True
+except ImportError:
+    TOKEN_MANAGER_AVAILABLE = False
+    logger.warning("⚠️ Token manager not available, using static token")
+
 logger = logging.getLogger(__name__)
 
 # WHOOP API configuration
@@ -17,22 +25,34 @@ WHOOP_ACCESS_TOKEN = os.getenv("WHOOP_ACCESS_TOKEN")
 
 
 class WhoopClient:
-    """Client for WHOOP API with safe error handling"""
+    """Client for WHOOP API with safe error handling and automatic token refresh"""
     
-    def __init__(self, access_token: str):
-        self.access_token = access_token
-        self.headers = {
-            "Authorization": f"Bearer {access_token}",
+    def __init__(self, access_token: str = None):
+        self.static_token = access_token
+        self.available = self._check_availability()
+    
+    def _get_access_token(self) -> Optional[str]:
+        """Get current access token (with automatic refresh if available)"""
+        if TOKEN_MANAGER_AVAILABLE:
+            token = get_current_access_token()
+            if token:
+                return token
+        return self.static_token
+    
+    def _get_headers(self) -> Dict[str, str]:
+        """Get request headers with current access token"""
+        token = self._get_access_token()
+        return {
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
-        self.available = self._check_availability()
     
     def _check_availability(self) -> bool:
         """Check if WHOOP API is available"""
         try:
             response = requests.get(
-                f"{WHOOP_API_BASE}/v1/user/profile/basic",
-                headers=self.headers,
+                f"{WHOOP_API_BASE}/v2/user/profile/basic",
+                headers=self._get_headers(),
                 timeout=5
             )
             return response.status_code == 200
@@ -41,24 +61,16 @@ class WhoopClient:
             return False
     
     def get_latest_recovery(self) -> Optional[Dict[str, Any]]:
-        """Get latest recovery data for TODAY"""
+        """Get latest recovery data (v2 API)"""
         if not self.available:
             return None
         
         try:
-            # Get TODAY's date range (from midnight to now)
-            now = datetime.now()
-            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = now
-            
+            # v2 API: Get latest recovery without time filter
             response = requests.get(
-                f"{WHOOP_API_BASE}/v1/recovery",
-                headers=self.headers,
-                params={
-                    "start": start.isoformat(),
-                    "end": end.isoformat(),
-                    "limit": 1
-                },
+                f"{WHOOP_API_BASE}/v2/recovery",
+                headers=self._get_headers(),
+                params={"limit": 1},
                 timeout=10
             )
             
@@ -67,6 +79,7 @@ class WhoopClient:
                 records = data.get("records", [])
                 return records[0] if records else None
             
+            logger.error(f"Recovery API error: {response.status_code} - {response.text}")
             return None
         
         except Exception as e:
@@ -91,8 +104,8 @@ class WhoopClient:
             start = end - timedelta(hours=36)
             
             response = requests.get(
-                f"{WHOOP_API_BASE}/v1/activity/sleep",
-                headers=self.headers,
+                f"{WHOOP_API_BASE}/v2/activity/sleep",
+                headers=self._get_headers(),
                 params={
                     "start": start.isoformat(),
                     "end": end.isoformat(),
@@ -124,8 +137,8 @@ class WhoopClient:
             end = now
             
             response = requests.get(
-                f"{WHOOP_API_BASE}/v1/cycle",
-                headers=self.headers,
+                f"{WHOOP_API_BASE}/v2/cycle",
+                headers=self._get_headers(),
                 params={
                     "start": start.isoformat(),
                     "end": end.isoformat(),
