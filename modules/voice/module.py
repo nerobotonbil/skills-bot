@@ -33,6 +33,9 @@ class VoiceModule(BaseModule):
         
         # Reference to AI assistant module (set on startup)
         self._ai_assistant = None
+        
+        # Track last transcription error for debugging
+        self._last_transcription_error = None
     
     def get_handlers(self) -> List[BaseHandler]:
         """Returns handlers"""
@@ -92,8 +95,10 @@ class VoiceModule(BaseModule):
                         f"📝 Recognized text:\n\n{text}"
                     )
             else:
+                # Get detailed error info
+                error_details = self._last_transcription_error or "Unknown error"
                 await update.message.reply_text(
-                    "❌ Couldn't recognize speech. Try again."
+                    f"❌ Couldn't recognize speech.\n\nError details:\n{error_details}\n\nTry again or check /logs"
                 )
                 
         except Exception as e:
@@ -107,15 +112,26 @@ class VoiceModule(BaseModule):
         Transcribes audio file to text.
         Uses OpenAI Whisper API.
         """
+        self._last_transcription_error = None
+        
         if OPENAI_API_KEY:
             text = await self._transcribe_openai(file_path)
             if text:
                 return text
+            else:
+                self._last_transcription_error = "OpenAI Whisper API failed. Check OPENAI_API_KEY or API status."
+        else:
+            self._last_transcription_error = "OPENAI_API_KEY not set."
         
         # Fallback to local tool
         text = await self._transcribe_local(file_path)
         if text:
             return text
+        else:
+            if self._last_transcription_error:
+                self._last_transcription_error += " Local transcription also failed."
+            else:
+                self._last_transcription_error = "Local transcription failed. manus-speech-to-text error."
         
         return None
     
@@ -141,12 +157,15 @@ class VoiceModule(BaseModule):
                 
         except FileNotFoundError:
             logger.warning("manus-speech-to-text not found")
+            self._last_transcription_error = "manus-speech-to-text tool not found"
             return None
         except subprocess.TimeoutExpired:
             logger.warning("Local transcription timed out")
+            self._last_transcription_error = "Local transcription timed out (>60s)"
             return None
         except Exception as e:
             logger.error(f"Local transcription error: {e}")
+            self._last_transcription_error = f"Local transcription error: {str(e)}"
             return None
     
     async def _transcribe_openai(self, file_path: str) -> Optional[str]:
@@ -169,9 +188,11 @@ class VoiceModule(BaseModule):
             
         except ImportError:
             logger.warning("OpenAI package not installed")
+            self._last_transcription_error = "OpenAI package not installed"
             return None
         except Exception as e:
             logger.error(f"OpenAI transcription error: {e}")
+            self._last_transcription_error = f"OpenAI API error: {str(e)}"
             return None
     
     def summarize_text(self, text: str, max_length: int = 200) -> str:
