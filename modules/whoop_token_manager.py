@@ -86,6 +86,7 @@ class WhoopTokenManager:
                 "refresh_token": self.refresh_token,
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
+                "redirect_uri": "http://localhost:8000/callback",
                 "scope": "offline read:recovery read:sleep read:workout read:cycles read:profile"
             }
             
