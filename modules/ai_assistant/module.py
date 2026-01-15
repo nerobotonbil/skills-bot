@@ -13,6 +13,7 @@ from telegram import Update
 from telegram.ext import MessageHandler, ContextTypes, BaseHandler, filters
 
 from modules.base import BaseModule
+from utils.message_utils import send_long_message
 
 logger = logging.getLogger(__name__)
 
@@ -265,8 +266,8 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
                 # Add response to history
                 history.append({"role": "assistant", "content": response})
                 
-                # Send response
-                await update.message.reply_text(response)
+                # Send response (split if too long)
+                await send_long_message(update, response)
             else:
                 await update.message.reply_text(
                     "🤔 Couldn't get a response. Try again."
@@ -382,11 +383,11 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
                 history.append({"role": "assistant", "content": response})
                 
                 # Show recognized text and AI response
-                await update.message.reply_text(
+                full_message = (
                     f"🎤 *Recognized:*\n_{transcribed_text}_\n\n"
-                    f"🤖 *Response:*\n{response}",
-                    parse_mode="Markdown"
+                    f"🤖 *Response:*\n{response}"
                 )
+                await send_long_message(update, full_message, parse_mode="Markdown")
             else:
                 await update.message.reply_text(
                     f"📝 Recognized text:\n\n{transcribed_text}"
