@@ -642,7 +642,8 @@ class ProductivityModule(BaseModule):
             return message
         
         return None
-        async def init_streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    
+    async def init_streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Initialize streak with 3-day history"""
         await update.message.reply_text("🔄 Инициализирую стрик с 3-дневной историей...")
         
@@ -663,7 +664,8 @@ class ProductivityModule(BaseModule):
                 parse_mode='Markdown'
             )
     
-    async def streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  """Handler for /streak command - shows streak info"""
+    async def streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handler for /streak command - shows streak info"""
         # Check Notion for today's progress and update streak if needed
         await self.check_notion_progress_and_update_streak()
         
