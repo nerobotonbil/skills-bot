@@ -224,13 +224,15 @@ class ProductivityModule(BaseModule):
             return {"success": False, "message": f"Error: {str(e)}"}
     
     def get_handlers(self) -> List[BaseHandler]:
-        """Returns command handler        handlers = [
+        """Returns command handlers for this module"""
+        handlers = [
             CommandHandler("streak", self.streak_command),
             CommandHandler("freeze", self.freeze_command),
             CommandHandler("init_streak", self.init_streak_command),
-        ]    CallbackQueryHandler(self.handle_practice_complete, pattern="^practice_done_"),
+            CallbackQueryHandler(self.handle_practice_complete, pattern="^practice_done_"),
             CallbackQueryHandler(self.handle_freeze_confirm, pattern="^freeze_"),
         ]
+        return handlers
     
     # ==================== STREAK SYSTEM ====================
     
