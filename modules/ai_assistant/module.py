@@ -223,7 +223,7 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         if detect_idea_intent(user_message):
             logger.info(f"Idea detected in text message: {user_message[:50]}...")
             response = await self._save_idea_directly(user_message, update)
-            await update.message.reply_text(response)
+            await send_long_message(update, response)
             return
         
         # Otherwise, process with AI
@@ -318,10 +318,8 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
         if detect_idea_intent(transcribed_text):
             logger.info(f"Idea detected in voice message: {transcribed_text[:50]}...")
             response = await self._save_idea_directly(transcribed_text, update)
-            await update.message.reply_text(
-                f"🎤 *Recognized:*\n_{transcribed_text}_\n\n{response}",
-                parse_mode="Markdown"
-            )
+            full_message = f"🎤 *Recognized:*\n_{transcribed_text}_\n\n{response}"
+            await send_long_message(update, full_message, parse_mode="Markdown")
             return
         
         # THIRD: Check if this is an advice request for last saved contact
