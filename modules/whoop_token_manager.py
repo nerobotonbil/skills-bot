@@ -85,8 +85,7 @@ class WhoopTokenManager:
                 "grant_type": "refresh_token",
                 "refresh_token": self.refresh_token,
                 "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "scope": "offline"  # Only 'offline' scope needed for refresh (per WHOOP docs)
+                "client_secret": self.client_secret
             }
             
             response = requests.post(TOKEN_URL, data=token_data, timeout=10)
