@@ -202,25 +202,73 @@ class ProductivityModule(BaseModule):
                 data = response.json()
                 pages = data.get("results", [])
                 
-                # Check if any skill has progress > 0
+                # Get yesterday's snapshot
+                yesterday = (date.today() - timedelta(days=1)).isoformat()
+                yesterday_snapshot = self.data.get("daily_snapshots", {}).get(yesterday, {})
+                
+                # Build current snapshot and compare with yesterday
+                today_snapshot = {}
                 has_progress = False
+                
                 for page in pages:
                     props = page.get("properties", {})
                     
-                    # Check all content types for progress
+                    # Get skill name
+                    skill_name_prop = props.get("Skill", {})
+                    skill_name = None
+                    if skill_name_prop.get("type") == "title":
+                        title_list = skill_name_prop.get("title", [])
+                        if title_list:
+                            skill_name = title_list[0].get("plain_text", "Unknown")
+                    
+                    if not skill_name:
+                        continue
+                    
+                    # Get current values for all content types
+                    current_values = {}
                     for content_type in ["Lectures", "Practice hours", "Videos", "Films ", "VC Lectures"]:
                         if content_type in props:
-                            value = props[content_type].get("number", 0)
-                            if value and value > 0:
+                            value = props[content_type].get("number", 0) or 0
+                            current_values[content_type] = value
+                    
+                    today_snapshot[skill_name] = current_values
+                    
+                    # Compare with yesterday's values
+                    if skill_name in yesterday_snapshot:
+                        yesterday_values = yesterday_snapshot[skill_name]
+                        for content_type, current_val in current_values.items():
+                            yesterday_val = yesterday_values.get(content_type, 0)
+                            if current_val > yesterday_val:
+                                logger.info(f"Progress detected: {skill_name} - {content_type}: {yesterday_val} -> {current_val}")
                                 has_progress = True
                                 break
+                    else:
+                        # New skill added today - check if it has any progress
+                        if any(v > 0 for v in current_values.values()):
+                            logger.info(f"New skill with progress: {skill_name}")
+                            has_progress = True
                     
                     if has_progress:
                         break
                 
-                # If there's any progress, update streak
+                # Save today's snapshot for tomorrow's comparison
+                if "daily_snapshots" not in self.data:
+                    self.data["daily_snapshots"] = {}
+                
+                today = date.today().isoformat()
+                self.data["daily_snapshots"][today] = today_snapshot
+                
+                # Keep only last 7 days of snapshots
+                cutoff = (date.today() - timedelta(days=7)).isoformat()
+                self.data["daily_snapshots"] = {
+                    d: s for d, s in self.data["daily_snapshots"].items()
+                    if d >= cutoff
+                }
+                
+                self._save_data()
+                
+                # If there's progress, update streak
                 if has_progress:
-                    today = date.today().isoformat()
                     last_practice = self.data["streak"]["last_practice_date"]
                     
                     # Only update if not already updated today
