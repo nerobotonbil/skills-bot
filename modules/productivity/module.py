@@ -97,7 +97,8 @@ class ProductivityModule(BaseModule):
             "practice_history": [],  # List of {date, skills_practiced, duration_mins}
             "milestones_achieved": [],  # List of milestone days achieved
             "last_interleaved_skills": [],  # Last skills used in interleaving
-            "deep_practice_sessions": []  # History of deep practice blocks
+            "deep_practice_sessions": [],  # History of deep practice blocks
+            "daily_snapshots": {}  # Daily snapshots of skill values for progress tracking
         }
     
     def _save_data(self):
@@ -108,12 +109,126 @@ class ProductivityModule(BaseModule):
         except Exception as e:
             logger.error(f"Error saving productivity data: {e}")
     
+    async def init_streak_with_history(self, days: int = 3) -> Dict[str, any]:
+        """
+        Initialize streak with N-day history by creating snapshots
+        Returns dict with success status and message
+        """
+        try:
+            from config.settings import NOTION_SKILLS_DATABASE_ID
+            import httpx
+            
+            token = os.getenv("NOTION_API_TOKEN")
+            if not token:
+                return {"success": False, "message": "NOTION_API_TOKEN not configured"}
+            
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28"
+            }
+            
+            # Get current skills from Notion
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.notion.com/v1/databases/{NOTION_SKILLS_DATABASE_ID}/query",
+                    headers=headers,
+                    json={},
+                    timeout=30.0
+                )
+                
+                if response.status_code != 200:
+                    return {"success": False, "message": f"Failed to query Notion: {response.status_code}"}
+                
+                data = response.json()
+                pages = data.get("results", [])
+                
+                # Build current skill values
+                current_skills = {}
+                for page in pages:
+                    props = page.get("properties", {})
+                    
+                    # Get skill name
+                    skill_name_prop = props.get("Skill", {})
+                    skill_name = None
+                    if skill_name_prop.get("type") == "title":
+                        title_list = skill_name_prop.get("title", [])
+                        if title_list:
+                            skill_name = title_list[0].get("plain_text", "Unknown")
+                    
+                    if not skill_name:
+                        continue
+                    
+                    # Get current values
+                    current_values = {}
+                    for content_type in ["Lectures", "Practice hours", "Videos", "Films ", "VC Lectures"]:
+                        if content_type in props:
+                            value = props[content_type].get("number", 0) or 0
+                            current_values[content_type] = value
+                    
+                    current_skills[skill_name] = current_values
+                
+                if not current_skills:
+                    return {"success": False, "message": "No skills found in Notion"}
+                
+                # Create snapshots for last N days
+                if "daily_snapshots" not in self.data:
+                    self.data["daily_snapshots"] = {}
+                
+                today = date.today()
+                
+                for days_ago in range(days, 0, -1):
+                    snapshot_date = (today - timedelta(days=days_ago)).isoformat()
+                    
+                    # Create snapshot with values slightly lower than current
+                    # to simulate progress over the days
+                    snapshot = {}
+                    for skill_name, values in current_skills.items():
+                        snapshot_values = {}
+                        for content_type, current_val in values.items():
+                            # Reduce by days_ago to simulate progress
+                            snapshot_val = max(0, current_val - days_ago)
+                            snapshot_values[content_type] = snapshot_val
+                        snapshot[skill_name] = snapshot_values
+                    
+                    self.data["daily_snapshots"][snapshot_date] = snapshot
+                    logger.info(f"Created snapshot for {snapshot_date}")
+                
+                # Set streak to N days
+                self.data["streak"]["current"] = days
+                self.data["streak"]["longest"] = max(self.data["streak"].get("longest", 0), days)
+                self.data["streak"]["last_practice_date"] = (today - timedelta(days=1)).isoformat()
+                
+                # Add practice history
+                for days_ago in range(days, 0, -1):
+                    practice_date = (today - timedelta(days=days_ago)).isoformat()
+                    self.data["practice_history"].append({
+                        "date": practice_date,
+                        "skills_practiced": ["Memory Enhancement", "Research Skills"],
+                        "duration_mins": 60
+                    })
+                
+                # Save data
+                self._save_data()
+                
+                return {
+                    "success": True,
+                    "message": f"Streak initialized with {days}-day history",
+                    "current_streak": self.data["streak"]["current"],
+                    "longest_streak": self.data["streak"]["longest"],
+                    "snapshots_created": len(self.data["daily_snapshots"])
+                }
+        
+        except Exception as e:
+            logger.error(f"Error initializing streak: {e}")
+            return {"success": False, "message": f"Error: {str(e)}"}
+    
     def get_handlers(self) -> List[BaseHandler]:
-        """Returns command handlers"""
-        return [
+        """Returns command handler        handlers = [
             CommandHandler("streak", self.streak_command),
             CommandHandler("freeze", self.freeze_command),
-            CallbackQueryHandler(self.handle_practice_complete, pattern="^practice_done_"),
+            CommandHandler("init_streak", self.init_streak_command),
+        ]    CallbackQueryHandler(self.handle_practice_complete, pattern="^practice_done_"),
             CallbackQueryHandler(self.handle_freeze_confirm, pattern="^freeze_"),
         ]
     
@@ -527,9 +642,28 @@ class ProductivityModule(BaseModule):
             return message
         
         return None
+        async def init_streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Initialize streak with 3-day history"""
+        await update.message.reply_text("🔄 Инициализирую стрик с 3-дневной историей...")
+        
+        result = await self.init_streak_with_history(days=3)
+        
+        if result["success"]:
+            await update.message.reply_text(
+                f"✅ **Стрик успешно инициализирован!**\n\n"
+                f"Текущий стрик: **{result['current_streak']} дня**\n"
+                f"Лучший стрик: **{result['longest_streak']} дней**\n"
+                f"Снимков создано: **{result['snapshots_created']}**\n\n"
+                f"Теперь система будет правильно отслеживать твой ежедневный прогресс.",
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                f"❌ Ошибка: {result['message']}",
+                parse_mode='Markdown'
+            )
     
-    async def streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handler for /streak command - shows streak info"""
+    async def streak_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  """Handler for /streak command - shows streak info"""
         # Check Notion for today's progress and update streak if needed
         await self.check_notion_progress_and_update_streak()
         
