@@ -195,7 +195,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 @owner_only
 async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает список модулей"""
+    """Показывает список модулей и их статус"""
     modules = module_manager.get_all_modules()
     
     if not modules:
@@ -231,6 +231,50 @@ async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text += f"{status} **{name}**\n   {desc}\n\n"
     
     await update.message.reply_text(text, parse_mode='Markdown')
+
+
+@owner_only
+async def init_streak_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Инициализирует стрик с 3-дневной историей"""
+    await update.message.reply_text("🔄 Инициализирую стрик с 3-дневной историей...")
+    
+    try:
+        import subprocess
+        import sys
+        
+        # Run init_streak.py script
+        result = subprocess.run(
+            [sys.executable, "init_streak.py"],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        if result.returncode == 0:
+            # Success
+            await update.message.reply_text(
+                f"✅ **Стрик успешно инициализирован!**\n\n"
+                f"Текущий стрик: **3 дня**\n\n"
+                f"Теперь система будет правильно отслеживать твой ежедневный прогресс.",
+                parse_mode='Markdown'
+            )
+            logger.info("Streak initialized successfully")
+        else:
+            # Error
+            error_msg = result.stderr or result.stdout or "Unknown error"
+            await update.message.reply_text(
+                f"❌ Ошибка инициализации стрика:\n\n```\n{error_msg[:500]}\n```",
+                parse_mode='Markdown'
+            )
+            logger.error(f"Streak initialization failed: {error_msg}")
+    
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Ошибка: {str(e)}",
+            parse_mode='Markdown'
+        )
+        logger.error(f"Error in init_streak_command: {e}")
 
 
 async def post_init(application: Application) -> None:
@@ -324,6 +368,7 @@ def main() -> None:
     application.add_handler(CommandHandler("myid", myid_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CommandHandler("modules", modules_command))
+    application.add_handler(CommandHandler("init_streak", init_streak_command))
     
     # Регистрируем модули в приложении
     module_manager.set_application(application)
