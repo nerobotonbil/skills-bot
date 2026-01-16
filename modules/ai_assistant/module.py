@@ -24,9 +24,12 @@ IDEA_KEYWORDS = [
     "remember this", "keep the idea", "need to save", "put in notes",
     "i have an idea", "idea:", "note:", "write it down", "save this",
     "add to notes", "record this", "jot down",
+    "write idea", "write an idea", "write in notion", "write the idea",
+    "add idea", "add an idea", "add to notion",
     # Russian
     "запиши", "сохрани", "идея:", "заметка:", "запомни",
-    "записать", "сохранить идею", "добавь в заметки"
+    "записать", "сохранить идею", "добавь в заметки",
+    "запиши идею", "запиши в ноушен"
 ]
 
 
@@ -53,6 +56,8 @@ def extract_idea_text(text: str) -> str:
         r"^save idea[,:]?\s*",
         r"^save note[,:]?\s*",
         r"^write down[,:]?\s*",
+        r"^write (an? )?idea( in notion)?[,:]?\s*(that)?\s*",
+        r"^add (an? )?idea( to notion)?[,:]?\s*(that)?\s*",
         r"^note this[,:]?\s*",
         r"^remember this[,:]?\s*",
         r"^i have an idea[,:]?\s*",
@@ -60,6 +65,7 @@ def extract_idea_text(text: str) -> str:
         r"^note[,:]?\s*",
         r"^запиши[,:]?\s*",
         r"^сохрани[,:]?\s*",
+        r"^запиши (идею )?в ноушен[,:]?\s*(что)?\s*",
     ]
     
     result = text
