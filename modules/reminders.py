@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 MONTHLY_REVIEW_TIME = "19:00"
 MONTHLY_REVIEW_DAY = 1  # 1-е число месяца
 
-# Время напоминания о серии (днём, до вечерней задачи)
-STREAK_REMINDER_TIME = "18:00"
 
 # Файл для сохранения chat_id
 CHAT_ID_FILE = "/tmp/bot_chat_id.json"
@@ -36,7 +34,6 @@ class ReminderService:
     
     Расписание:
     - 09:00 — утренняя благодарность
-    - 18:00 — защита серии (loss aversion)
     - 20:00 — вечерняя задача (1 навык)
     - 23:00 — вечерняя благодарность
     - 1-е число месяца 19:00 — месячный обзор с AI
@@ -88,7 +85,6 @@ class ReminderService:
         
         # Парсим время
         morning_hour, morning_minute = scheduler.parse_time(MORNING_REMINDER_TIME)
-        streak_hour, streak_minute = scheduler.parse_time(STREAK_REMINDER_TIME)
         task_hour, task_minute = scheduler.parse_time(EVENING_TASK_TIME)
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
         monthly_hour, monthly_minute = scheduler.parse_time(MONTHLY_REVIEW_TIME)
@@ -99,14 +95,6 @@ class ReminderService:
             self.send_morning_gratitude,
             hour=morning_hour,
             minute=morning_minute
-        )
-        
-        # Напоминание о серии (18:00) — loss aversion
-        scheduler.add_daily_job(
-            "streak_reminder",
-            self.send_streak_reminder,
-            hour=streak_hour,
-            minute=streak_minute
         )
         
         # Вечерняя задача (20:00) — 1 навык
@@ -123,22 +111,6 @@ class ReminderService:
             self.send_evening_gratitude,
             hour=evening_hour,
             minute=evening_minute
-        )
-        
-        # Напоминание о стрике (23:00) - если прогресса нет
-        scheduler.add_daily_job(
-            "streak_reminder_23",
-            self.send_streak_reminder_23,
-            hour=23,
-            minute=0
-        )
-        
-        # Финальная проверка стрика (03:00) - окончательное обновление
-        scheduler.add_daily_job(
-            "auto_streak_update",
-            self.auto_update_streak,
-            hour=3,
-            minute=0
         )
         
         # Воскресное напоминание (15:00) - дополнительные задачи
@@ -161,7 +133,6 @@ class ReminderService:
         
         logger.info(
             f"Напоминания настроены: утро в {MORNING_REMINDER_TIME}, "
-            f"серия в {STREAK_REMINDER_TIME}, "
             f"задача в {EVENING_TASK_TIME}, вечер в {EVENING_REMINDER_TIME}, "
             f"воскресенье в 15:00, "
             f"месячный обзор {MONTHLY_REVIEW_DAY}-го числа в {MONTHLY_REVIEW_TIME}"
@@ -331,41 +302,6 @@ class ReminderService:
             except Exception as e2:
                 logger.error(f"Ошибка отправки fallback сообщения: {e2}")
     
-    async def send_streak_reminder(self) -> None:
-        """
-        Отправляет напоминание о защите серии (18:00).
-        Сначала синхронизирует данные с Notion, затем отправляет напоминание.
-        Использует психологию неприятия потерь для мотивации.
-        Отправляется только если серия под угрозой.
-        """
-        if not self._app or not self._chat_id:
-            logger.warning("Не могу отправить напоминание о серии: app или chat_id не установлены")
-            return
-        
-        try:
-            # Синхронизация с Notion перед проверкой серии
-            logger.info("Запускаю синхронизацию с Notion перед проверкой серии...")
-            await notion_module.refresh_skills_cache()
-            logger.info("Синхронизация завершена")
-            
-            # Импортируем здесь чтобы избежать циклических импортов
-            from modules.productivity.module import productivity_module
-            
-            # Генерируем сообщение loss aversion (возвращает None если не нужно)
-            message = productivity_module.generate_loss_aversion_reminder()
-            
-            if message:
-                await self._app.bot.send_message(
-                    chat_id=self._chat_id,
-                    text=message,
-                    parse_mode='Markdown'
-                )
-                logger.info("Напоминание о серии отправлено (loss aversion)")
-            else:
-                logger.info("Напоминание о серии пропущено (уже практиковался сегодня или нет серии)")
-            
-        except Exception as e:
-            logger.error(f"Ошибка отправки напоминания о серии: {e}")
     
     async def send_evening_task(self) -> None:
         """
@@ -451,76 +387,6 @@ class ReminderService:
         except Exception as e:
             logger.error(f"Ошибка отправки месячного обзора: {e}")
     
-    async def send_streak_reminder_23(self) -> None:
-        """
-        Отправляет напоминание в 23:00, если прогресса нет.
-        Не сбрасывает стрик - даёт время до 03:00.
-        """
-        if not self._app or not self._chat_id:
-            logger.warning("Не могу отправить напоминание: app или chat_id не установлены")
-            return
-        
-        try:
-            from modules.productivity.module import productivity_module
-            
-            # Проверяем Notion на наличие прогресса
-            has_progress = await productivity_module._check_notion_progress_today()
-            
-            if not has_progress:
-                info = productivity_module.get_streak_info()
-                if info['current'] > 0:
-                    await self._app.bot.send_message(
-                        chat_id=self._chat_id,
-                        text=f"⚠️ **Напоминание о стрике**\n\nСегодня пока нет прогресса в Notion.\nТекущая серия: **{info['current']} дней**\n\nУ тебя есть время до 03:00, чтобы добавить прогресс или использовать /freeze для заморозки.",
-                        parse_mode='Markdown'
-                    )
-                    logger.info("Отправлено напоминание о стрике в 23:00")
-            else:
-                logger.info("Прогресс есть, напоминание не требуется")
-                
-        except Exception as e:
-            logger.error(f"Ошибка отправки напоминания о стрике: {e}")
-    
-    async def auto_update_streak(self) -> None:
-        """
-        Автоматически обновляет стрик каждый день в 03:00.
-        Проверяет Notion на наличие прогресса за предыдущий день и обновляет стрик.
-        Если прогресса нет - стрик может сброситься (или использоваться заморозка).
-        """
-        if not self._app or not self._chat_id:
-            logger.warning("Не могу обновить стрик: app или chat_id не установлены")
-            return
-        
-        try:
-            from modules.productivity.module import productivity_module
-            
-            # Проверяем Notion и обновляем стрик
-            updated = await productivity_module.check_notion_progress_and_update_streak()
-            
-            if updated:
-                logger.info("Стрик автоматически обновлён на основе прогресса в Notion")
-                
-                # Отправляем подтверждение
-                info = productivity_module.get_streak_info()
-                await self._app.bot.send_message(
-                    chat_id=self._chat_id,
-                    text=f"🔥 **Стрик обновлён!**\n\nТекущая серия: **{info['current']} дней**\n\nОтличная работа! 🎉",
-                    parse_mode='Markdown'
-                )
-            else:
-                logger.info("Прогресса сегодня нет, стрик не обновлён")
-                
-                # Отправляем напоминание
-                info = productivity_module.get_streak_info()
-                if info['current'] > 0:
-                    await self._app.bot.send_message(
-                        chat_id=self._chat_id,
-                        text=f"⚠️ **Стрик не обновлён**\n\nСегодня не было прогресса в Notion.\nТекущая серия: **{info['current']} дней**\n\nЕсли ты практиковался, обнови данные в Notion или используй /freeze для заморозки.",
-                        parse_mode='Markdown'
-                    )
-                
-        except Exception as e:
-            logger.error(f"Ошибка автоматического обновления стрика: {e}")
     
     async def send_custom_reminder(self, message: str) -> None:
         """Отправляет произвольное напоминание"""
