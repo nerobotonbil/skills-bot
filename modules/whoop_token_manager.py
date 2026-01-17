@@ -83,9 +83,10 @@ class WhoopTokenManager:
             
             token_data = {
                 "grant_type": "refresh_token",
-                "refresh_token": self.refresh_token,
                 "client_id": self.client_id,
-                "client_secret": self.client_secret
+                "client_secret": self.client_secret,
+                "scope": "offline",
+                "refresh_token": self.refresh_token
             }
             
             response = requests.post(TOKEN_URL, data=token_data, timeout=10)
