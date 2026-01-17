@@ -472,9 +472,11 @@ class ContactsModule(BaseModule):
             "познакомился", "познакомилась", "встретил", "встретила",
             "новый человек", "новый контакт", "нетворкинг",
             "контакт", "знакомство", "встреча с",
+            "новое знакомство", "новое знакомство это",
             "запиши контакт", "добавь контакт", "сохрани контакт",
             # English
             "met someone", "met a", "i met", "new contact", "networking",
+            "new acquaintance", "new acquaintance but",
             "met her", "met him", "met this", "wonderful girl", "wonderful guy",
             "interesting person", "interesting guy", "interesting girl",
             "would like to meet", "want to meet again", "meet her again", "meet him again",
