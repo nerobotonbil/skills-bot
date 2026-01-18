@@ -114,6 +114,7 @@ class GratitudeModule(BaseModule):
         return [
             CommandHandler("gratitude", self.gratitude_command),
             CommandHandler("review", self.review_command),
+            CommandHandler("weekly_gratitude", self.weekly_recap_command),
             CallbackQueryHandler(self.handle_time_selection, pattern="^gratitude_"),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
@@ -346,6 +347,36 @@ class GratitudeModule(BaseModule):
             return False
     
     @owner_only
+    async def weekly_recap_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Command /weekly_gratitude - AI-powered weekly gratitude recap in Russian"""
+        await update.message.reply_text("🔄 Анализирую твои записи благодарности за неделю...")
+        
+        # Get entries from last 7 days (Monday to Sunday)
+        entries = await self._get_week_entries()
+        
+        if not entries:
+            await update.message.reply_text(
+                "📊 **Недельный рекап**\n\n"
+                "Нет записей за последние 7 дней.\n"
+                "Начни записывать благодарности, чтобы увидеть анализ!\n\n"
+                "Используй /gratitude чтобы начать 🙏",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Get AI analysis in Russian
+        analysis = await self._analyze_week_patterns_russian(entries)
+        
+        # Format and send response
+        message = await self._format_weekly_recap_russian(entries, analysis)
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+    
+    @owner_only
     async def review_command(
         self,
         update: Update,
@@ -445,6 +476,110 @@ class GratitudeModule(BaseModule):
         except Exception as e:
             logger.error(f"Failed to get entries from Notion: {e}")
             return []
+    
+    async def _analyze_week_patterns_russian(self, entries: List[Dict]) -> Dict:
+        """Uses AI to analyze weekly gratitude patterns in Russian"""
+        try:
+            client = self._get_openai_client()
+            
+            # Combine all entries into text
+            entries_text = "\n".join([
+                f"- {e['date']} ({e['time']}): {e['text']}" 
+                for e in entries
+            ])
+            
+            prompt = f"""Проанализируй эти записи благодарности за неделю и дай инсайты.
+
+ЗАПИСИ:
+{entries_text}
+
+Ответь в JSON формате:
+{{
+    "key_themes": ["тема1", "тема2", "тема3"],  // Топ-3 темы недели
+    "people": ["человек1", "человек2"],  // Ключевые люди, упомянутые в записях
+    "patterns": "Краткое описание паттернов (за что чаще благодарил, что приносит радость)",
+    "insights": "Главный инсайт недели - что это говорит о твоих приоритетах и ценностях (2-3 предложения)",
+    "recommendations": "Конкретные рекомендации куда двигаться дальше, на что обратить внимание (2-3 предложения)"
+}}
+
+Пиши на русском, будь конкретным и персонализированным. Фокусируйся на том, что действительно важно для человека."""
+
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[
+                    {"role": "system", "content": "Ты мудрый коуч, который анализирует дневники благодарности и даёт глубокие инсайты на русском языке."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON from response
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0]
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0]
+            
+            return json.loads(result_text)
+            
+        except Exception as e:
+            logger.error(f"AI analysis failed: {e}")
+            return {
+                "key_themes": ["благодарность", "повседневная жизнь"],
+                "people": [],
+                "patterns": "Регулярная практика благодарности",
+                "insights": "Продолжай в том же духе!",
+                "recommendations": "Продолжай записывать благодарности каждый день."
+            }
+    
+    async def _format_weekly_recap_russian(self, entries: List[Dict], analysis: Dict) -> str:
+        """Formats weekly recap message in Russian"""
+        # Count entries
+        total = len(entries)
+        
+        # Group by day of week
+        from datetime import datetime
+        days_count = {}
+        for entry in entries:
+            if entry.get('date'):
+                day_name = datetime.fromisoformat(entry['date']).strftime('%A')
+                days_count[day_name] = days_count.get(day_name, 0) + 1
+        
+        message = f"""📊 **Недельный рекап благодарности**
+
+📝 **Статистика:**
+• Всего записей: {total}
+• Дней с записями: {len(days_count)}/7
+
+🎯 **Ключевые темы:**
+"""
+        
+        for theme in analysis.get('key_themes', []):
+            message += f"• {theme}\n"
+        
+        if analysis.get('people'):
+            message += f"\n👥 **Важные люди:**\n"
+            for person in analysis['people']:
+                message += f"• {person}\n"
+        
+        message += f"""
+
+🔍 **Паттерны:**
+{analysis.get('patterns', 'Нет данных')}
+
+💡 **Инсайты:**
+{analysis.get('insights', 'Нет данных')}
+
+🚀 **Рекомендации:**
+{analysis.get('recommendations', 'Продолжай записывать благодарности!')}
+
+---
+Используй /gratitude чтобы продолжить 🙏
+"""
+        
+        return message
     
     async def _analyze_patterns(self, entries: List[Dict]) -> Dict:
         """Uses AI to analyze gratitude patterns and detect challenges"""
