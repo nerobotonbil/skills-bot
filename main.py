@@ -133,6 +133,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 **🙏 Благодарность:**
 /gratitude - записать
+/weekly_gratitude - недельный рекап
 /review - месячный обзор
 
 **👥 Контакты:**
@@ -290,7 +291,8 @@ async def post_init(application: Application) -> None:
         BotCommand("streak", "Серия практики"),
         BotCommand("freeze", "Заморозка серии"),
         BotCommand("gratitude", "Записать благодарность"),
-        BotCommand("review", "Недельный обзор"),
+        BotCommand("weekly_gratitude", "Недельный рекап"),
+        BotCommand("review", "Месячный обзор"),
         BotCommand("contact", "Добавить контакт"),
         BotCommand("contacts", "Список контактов"),
         BotCommand("sync", "Синхронизация с Notion"),
