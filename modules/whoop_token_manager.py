@@ -81,15 +81,26 @@ class WhoopTokenManager:
         try:
             logger.info("🔄 Refreshing WHOOP access token...")
             
+            # Strip whitespace from credentials to avoid issues
             token_data = {
                 "grant_type": "refresh_token",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
+                "client_id": self.client_id.strip(),
+                "client_secret": self.client_secret.strip(),
                 "scope": "offline",
-                "refresh_token": self.refresh_token
+                "refresh_token": self.refresh_token.strip()
             }
             
-            response = requests.post(TOKEN_URL, data=token_data, timeout=10)
+            # Log sanitized request (hide sensitive data)
+            logger.info(f"📤 Request to: {TOKEN_URL}")
+            logger.info(f"📤 grant_type: {token_data['grant_type']}")
+            logger.info(f"📤 client_id: {token_data['client_id'][:8]}...")
+            logger.info(f"📤 scope: {token_data['scope']}")
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            response = requests.post(TOKEN_URL, data=token_data, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 token_info = response.json()
