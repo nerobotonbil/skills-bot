@@ -368,11 +368,14 @@ class GratitudeModule(BaseModule):
             )
             return
         
+        # Get weekly metrics from all databases
+        metrics = await self._get_weekly_metrics()
+        
         # Get AI analysis in Russian
         analysis = await self._analyze_week_patterns_russian(entries)
         
         # Format and send response
-        message = await self._format_weekly_recap_russian(entries, analysis)
+        message = await self._format_weekly_recap_russian(entries, analysis, metrics)
         
         await update.message.reply_text(message, parse_mode='Markdown')
     
@@ -534,7 +537,7 @@ class GratitudeModule(BaseModule):
                 "recommendations": "Продолжай записывать благодарности каждый день."
             }
     
-    async def _format_weekly_recap_russian(self, entries: List[Dict], analysis: Dict) -> str:
+    async def _format_weekly_recap_russian(self, entries: List[Dict], analysis: Dict, metrics: Dict[str, int] = None) -> str:
         """Formats weekly recap message in Russian"""
         # Count entries
         total = len(entries)
@@ -547,14 +550,26 @@ class GratitudeModule(BaseModule):
                 day_name = datetime.fromisoformat(entry['date']).strftime('%A')
                 days_count[day_name] = days_count.get(day_name, 0) + 1
         
-        message = f"""📊 **Недельный рекап благодарности**
+        # Start with header and activity metrics
+        message = f"""📊 **Недельный рекап**
 
-📝 **Статистика:**
-• Всего записей: {total}
-• Дней с записями: {len(days_count)}/7
-
-🎯 **Ключевые темы:**
+🎉 **Что сделал за неделю:**
 """
+        
+        # Add metrics if available
+        if metrics:
+            if metrics.get('contacts', 0) > 0:
+                message += f"• 👥 Познакомился: {metrics['contacts']} чел.\n"
+            if metrics.get('ideas', 0) > 0:
+                message += f"• 💡 Записал идей: {metrics['ideas']}\n"
+            if metrics.get('gratitudes', 0) > 0:
+                message += f"• 🙏 Записей благодарности: {metrics['gratitudes']}\n"
+            message += f"• 📅 Дней с записями: {len(days_count)}/7\n"
+        else:
+            message += f"• Всего записей: {total}\n"
+            message += f"• Дней с записями: {len(days_count)}/7\n"
+        
+        message += "\n🎯 **Ключевые темы:**\n"
         
         for theme in analysis.get('key_themes', []):
             message += f"• {theme}\n"
@@ -580,6 +595,76 @@ class GratitudeModule(BaseModule):
 """
         
         return message
+    
+    async def _get_weekly_metrics(self) -> Dict[str, int]:
+        """Fetch weekly metrics from all Notion databases"""
+        from datetime import date, timedelta
+        
+        token = os.getenv("NOTION_API_TOKEN")
+        if not token:
+            return {}
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        }
+        
+        week_ago = (date.today() - timedelta(days=7)).isoformat()
+        
+        metrics = {
+            "contacts": 0,
+            "ideas": 0,
+            "gratitudes": 0
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                # Count contacts (networking)
+                contacts_db_id = "28b8db7c936780b9a5c1facea087a15a"
+                try:
+                    response = await client.post(
+                        f"https://api.notion.com/v1/databases/{contacts_db_id}/query",
+                        headers=headers,
+                        json={
+                            "filter": {
+                                "property": "Date",
+                                "date": {"on_or_after": week_ago}
+                            }
+                        },
+                        timeout=30.0
+                    )
+                    if response.status_code == 200:
+                        metrics["contacts"] = len(response.json().get("results", []))
+                except Exception as e:
+                    logger.warning(f"Failed to fetch contacts: {e}")
+                
+                # Count ideas
+                ideas_db_id = "2e28db7c936780b28d66e45ab2e6f7e6"
+                try:
+                    response = await client.post(
+                        f"https://api.notion.com/v1/databases/{ideas_db_id}/query",
+                        headers=headers,
+                        json={
+                            "filter": {
+                                "property": "Created",
+                                "date": {"on_or_after": week_ago}
+                            }
+                        },
+                        timeout=30.0
+                    )
+                    if response.status_code == 200:
+                        metrics["ideas"] = len(response.json().get("results", []))
+                except Exception as e:
+                    logger.warning(f"Failed to fetch ideas: {e}")
+                
+                # Gratitudes already counted from entries
+                metrics["gratitudes"] = len(await self._get_week_entries())
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch weekly metrics: {e}")
+        
+        return metrics
     
     async def _analyze_patterns(self, entries: List[Dict]) -> Dict:
         """Uses AI to analyze gratitude patterns and detect challenges"""
