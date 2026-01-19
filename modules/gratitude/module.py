@@ -377,7 +377,7 @@ class GratitudeModule(BaseModule):
         # Format and send response
         message = await self._format_weekly_recap_russian(entries, analysis, metrics)
         
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message)
     
     @owner_only
     async def review_command(
@@ -550,49 +550,43 @@ class GratitudeModule(BaseModule):
                 day_name = datetime.fromisoformat(entry['date']).strftime('%A')
                 days_count[day_name] = days_count.get(day_name, 0) + 1
         
-        # Start with header and activity metrics
-        message = f"""📊 **Недельный рекап**
-
-🎉 **Что сделал за неделю:**
-"""
+        # Start with header and activity metrics (clean style, no Markdown bold)
+        message = "📊 Недельный рекап\n\n"
+        message += "🎉 Что сделал за неделю:\n"
         
         # Add metrics if available
         if metrics:
             if metrics.get('contacts', 0) > 0:
-                message += f"• 👥 Познакомился: {metrics['contacts']} чел.\n"
+                contacts_word = "человек" if metrics['contacts'] == 1 else ("человека" if metrics['contacts'] < 5 else "человек")
+                message += f"\t•\tНовые знакомства: {metrics['contacts']} {contacts_word}\n"
             if metrics.get('ideas', 0) > 0:
-                message += f"• 💡 Записал идей: {metrics['ideas']}\n"
+                message += f"\t•\tЗаписал идей: {metrics['ideas']}\n"
             if metrics.get('gratitudes', 0) > 0:
-                message += f"• 🙏 Записей благодарности: {metrics['gratitudes']}\n"
-            message += f"• 📅 Дней с записями: {len(days_count)}/7\n"
+                message += f"\t•\tЗаписей благодарности: {metrics['gratitudes']}\n"
+            message += f"\t•\tДней с записями: {len(days_count)} из 7\n"
         else:
-            message += f"• Всего записей: {total}\n"
-            message += f"• Дней с записями: {len(days_count)}/7\n"
+            message += f"\t•\tВсего записей: {total}\n"
+            message += f"\t•\tДней с записями: {len(days_count)} из 7\n"
         
-        message += "\n🎯 **Ключевые темы:**\n"
-        
+        message += "\n🎯 Ключевые темы:\n"
         for theme in analysis.get('key_themes', []):
-            message += f"• {theme}\n"
+            message += f"\t•\t{theme}\n"
         
         if analysis.get('people'):
-            message += f"\n👥 **Важные люди:**\n"
+            message += f"\n👥 Важные люди:\n"
             for person in analysis['people']:
-                message += f"• {person}\n"
+                message += f"\t•\t{person}\n"
         
-        message += f"""
-
-🔍 **Паттерны:**
-{analysis.get('patterns', 'Нет данных')}
-
-💡 **Инсайты:**
-{analysis.get('insights', 'Нет данных')}
-
-🚀 **Рекомендации:**
-{analysis.get('recommendations', 'Продолжай записывать благодарности!')}
-
----
-Используй /gratitude чтобы продолжить 🙏
-"""
+        message += f"\n🔍 Паттерны:\n"
+        message += f"{analysis.get('patterns', 'Нет данных')}\n"
+        
+        message += f"\n💡 Инсайты:\n"
+        message += f"{analysis.get('insights', 'Нет данных')}\n"
+        
+        message += f"\n🚀 Рекомендации:\n"
+        message += f"{analysis.get('recommendations', 'Продолжай записывать благодарности!')}\n"
+        
+        message += "\nИспользуй /gratitude чтобы продолжить. 🙏"
         
         return message
     
