@@ -33,7 +33,6 @@ class ReminderService:
     Сервис напоминаний.
     
     Расписание:
-    - 09:00 — утренняя благодарность
     - 20:00 — вечерняя задача (1 навык)
     - 23:00 — вечерняя благодарность
     - 1-е число месяца 19:00 — месячный обзор с AI
@@ -89,14 +88,6 @@ class ReminderService:
         evening_hour, evening_minute = scheduler.parse_time(EVENING_REMINDER_TIME)
         monthly_hour, monthly_minute = scheduler.parse_time(MONTHLY_REVIEW_TIME)
         
-        # Утренняя благодарность (09:00)
-        scheduler.add_daily_job(
-            "morning_reminder",
-            self.send_morning_gratitude,
-            hour=morning_hour,
-            minute=morning_minute
-        )
-        
         # Вечерняя задача (20:00) — 1 навык
         scheduler.add_daily_job(
             "evening_task",
@@ -132,8 +123,8 @@ class ReminderService:
         )
         
         logger.info(
-            f"Напоминания настроены: утро в {MORNING_REMINDER_TIME}, "
-            f"задача в {EVENING_TASK_TIME}, вечер в {EVENING_REMINDER_TIME}, "
+            f"Напоминания настроены: "
+            f"задача в {EVENING_TASK_TIME}, вечерняя благодарность в {EVENING_REMINDER_TIME}, "
             f"воскресенье в 15:00, "
             f"месячный обзор {MONTHLY_REVIEW_DAY}-го числа в {MONTHLY_REVIEW_TIME}"
         )
