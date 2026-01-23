@@ -391,10 +391,16 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             )
     
     async def _get_ai_response(self, history: List[Dict]) -> Optional[str]:
-        """Gets response from OpenAI API"""
+        """Gets response from OpenAI API with Apple Health context"""
         try:
-            # Build system prompt
+            # Get Apple Health data if available
+            from modules.apple_health.module import apple_health_module
+            health_context = apple_health_module.get_health_context_for_ai()
+            
+            # Build system prompt with health data
             system_prompt = self._system_prompt
+            if health_context:
+                system_prompt += "\n\n" + health_context
             
             messages = [
                 {"role": "system", "content": system_prompt}

@@ -36,6 +36,7 @@ from modules.ai_assistant.module import ai_assistant_module
 from modules.ideas.module import ideas_module
 from modules.productivity.module import productivity_module
 from modules.contacts.module import contacts_module
+from modules.apple_health.module import apple_health_module
 from modules.reminders import reminder_service
 from modules.logging_handler import telegram_handler, get_recent_logs
 
@@ -186,18 +187,13 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 @owner_only
 async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает список модулей и их статус"""
+    """Показывает статус модулей"""
     modules = module_manager.get_all_modules()
     
-    if not modules:
-        await update.message.reply_text("Модули не загружены")
-        return
-    
-    # Русские названия модулей
     module_names_ru = {
-        "notion": "Notion интеграция",
-        "learning": "Планирование обучения",
-        "gratitude": "Дневник благодарности",
+        "notion": "Notion",
+        "learning": "Обучение",
+        "gratitude": "Благодарность",
         "voice": "Голосовые сообщения",
         "ai_assistant": "AI-ассистент",
         "ideas": "Банк идей",
@@ -222,6 +218,12 @@ async def modules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text += f"{status} **{name}**\n   {desc}\n\n"
     
     await update.message.reply_text(text, parse_mode='Markdown')
+
+
+async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает данные Apple Health"""
+    summary = apple_health_module.get_health_summary()
+    await update.message.reply_text(summary)
 
 
 async def post_init(application: Application) -> None:
@@ -314,6 +316,7 @@ def main() -> None:
     application.add_handler(CommandHandler("myid", myid_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(CommandHandler("modules", modules_command))
+    application.add_handler(CommandHandler("health", health_command))
     
     # Регистрируем модули в приложении
     module_manager.set_application(application)
