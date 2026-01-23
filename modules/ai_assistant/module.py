@@ -107,7 +107,6 @@ Your capabilities:
 2. Record gratitude entries in journal
 3. Answer questions about learning
 4. Motivate and support
-5. Analyze health data from WHOOP to give personalized recommendations
 
 Bot context:
 - User is learning 50 skills, tracking progress in Notion
@@ -128,20 +127,7 @@ Communication style:
 - Use emojis sparingly
 - Respond in English
 
-WHEN WHOOP DATA IS AVAILABLE:
-- Start with: "Based on your WHOOP data: [key metrics]"
-- Show Recovery Score, HRV, Sleep hours if relevant
-- Then give specific actionable advice
-- Keep it SHORT - 3-4 sentences max
 
-Example good response:
-"Based on your WHOOP data: Recovery 45%, HRV 32ms, 6.5h sleep.
-
-7 PM is a good point to pause. Take a 30-45 min break.
-
-After that, light study session - 1 to 1.5 hours on something manageable.
-
-For sleep: wind down around 10:30 PM, asleep by 11:00 PM."
 
 NOTE: Ideas are handled automatically by the system. Just be helpful and conversational."""
 
@@ -405,15 +391,10 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             )
     
     async def _get_ai_response(self, history: List[Dict]) -> Optional[str]:
-        """Gets response from OpenAI API with WHOOP health context"""
+        """Gets response from OpenAI API"""
         try:
-            # Get WHOOP health data if available
-            whoop_context = self._get_whoop_context()
-            
-            # Build system prompt with WHOOP data
+            # Build system prompt
             system_prompt = self._system_prompt
-            if whoop_context:
-                system_prompt += "\n\n" + whoop_context
             
             messages = [
                 {"role": "system", "content": system_prompt}
@@ -432,90 +413,7 @@ NOTE: Ideas are handled automatically by the system. Just be helpful and convers
             logger.error(f"OpenAI API error: {e}")
             return None
     
-    def _get_whoop_context(self) -> str:
-        """Get WHOOP health data as context for AI"""
-        try:
-            from modules.whoop_integration import get_whoop_client
-            
-            client = get_whoop_client()
-            if not client:
-                logger.warning("⚠️ WHOOP client not available - check WHOOP_ACCESS_TOKEN")
-                return ""
-            
-            logger.warning("🔄 Fetching WHOOP health data...")
-            health_data = client.get_comprehensive_health_data()
-            logger.warning(f"📊 WHOOP data received: available={health_data.get('available')}, keys={list(health_data.keys())}")
-            
-            if not health_data.get("available"):
-                reason = health_data.get('reason', 'Unknown')
-                logger.warning(f"❌ WHOOP data not available: {reason}")
-                return ""
-            
-            # Format health data for AI context
-            context = "\n=== USER HEALTH DATA (WHOOP) ===\n"
-            
-            # Recovery data
-            if health_data.get("recovery"):
-                rec = health_data["recovery"]
-                context += f"\nRecovery Score: {rec.get('score')}% (0-100%)\n"
-                context += f"Resting Heart Rate: {rec.get('resting_heart_rate')} bpm\n"
-                context += f"HRV (Heart Rate Variability): {rec.get('hrv_rmssd'):.1f} ms\n"
-                context += f"Blood Oxygen (SpO2): {rec.get('spo2'):.1f}%\n"
-                context += f"Skin Temperature: {rec.get('skin_temp_celsius'):.1f}°C\n"
-            
-            # Sleep data
-            if health_data.get("sleep"):
-                sleep = health_data["sleep"]
-                context += f"\nSleep Duration: {sleep.get('total_sleep_time_hours', 0):.1f} hours\n"
-                context += f"Sleep Efficiency: {sleep.get('sleep_efficiency', 0):.1f}%\n"
-                context += f"Respiratory Rate: {sleep.get('respiratory_rate', 0):.1f} breaths/min\n"
-            
-            # Strain data
-            if health_data.get("strain"):
-                strain = health_data["strain"]
-                context += f"\nDay Strain: {strain.get('day_strain', 0):.1f} (0-21 scale)\n"
-                context += f"Calories Burned: {strain.get('kilojoules', 0) * 0.239:.0f} kcal\n"
-                context += f"Average Heart Rate: {strain.get('average_heart_rate')} bpm\n"
-            
-            # Add current time context
-            from datetime import datetime
-            import pytz
-            from config.settings import TIMEZONE
-            
-            tz = pytz.timezone(TIMEZONE)
-            now = datetime.now(tz)
-            context += f"\nCurrent Time: {now.strftime('%H:%M')} ({now.strftime('%A, %B %d, %Y')})\n"
-            
-            context += "\n=== INSTRUCTIONS ===\n"
-            context += "Use this health data to answer questions about:\n"
-            context += "- Sleep quality and recommendations\n"
-            context += "- Recovery and readiness for activity\n"
-            context += "- When to sleep, work out, or rest\n"
-            context += "- Why user feels tired or energized\n"
-            context += "- Optimal times for learning/practice based on recovery\n"
-            context += "\nInterpretation guidelines:\n"
-            context += "- Recovery 67-100%: Excellent, ready for intense activity\n"
-            context += "- Recovery 34-66%: Moderate, light activity recommended\n"
-            context += "- Recovery 0-33%: Low, rest and recovery needed\n"
-            context += "- HRV >50ms: Good, <30ms: Stressed/fatigued\n"
-            context += "- Sleep efficiency >85%: Good, <75%: Poor\n"
-            context += "\n=== SLEEP TIME CALCULATION ===\n"
-            context += "When user asks about sleep time:\n"
-            context += "1. ALWAYS calculate actual available sleep time from current time to wake time\n"
-            context += "2. Compare with WHOOP recommended sleep (typically 6.5-8 hours based on recovery)\n"
-            context += "3. Show BOTH numbers clearly:\n"
-            context += "   - 'You have X hours Y minutes until [wake time]'\n"
-            context += "   - 'WHOOP recommends [recommended] hours based on your recovery'\n"
-            context += "4. Then give verdict: 'That's enough/not enough/perfect for good recovery'\n"
-            context += "\nExample: If current time is 00:20 and wake time is 8:40:\n"
-            context += "'You have 8 hours 20 minutes until 8:40 AM. WHOOP recommends 6.5-7 hours based on your 51% recovery. That's more than enough - you'll wake up well-rested!'\n"
-            
-            return context
-        
-        except Exception as e:
-            logger.warning(f"Could not get WHOOP context: {e}")
-            return ""
-    
+
     def clear_history(self, user_id: int) -> None:
         """Clears conversation history for user"""
         if user_id in self._conversation_history:

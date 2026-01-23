@@ -150,126 +150,12 @@ class ReminderService:
             return
         
         try:
-            # Get WHOOP data
-            from modules.whoop_integration import get_whoop_client
-            from modules.task_recommender import get_task_recommender
-            from datetime import datetime
-            
-            whoop_client = get_whoop_client()
-            recommender = get_task_recommender()
-            
-            message_parts = ["🌅 **Доброе утро! План на день**\n"]
-            
-            if whoop_client and whoop_client.available:
-                # Get comprehensive WHOOP data
-                whoop_data = whoop_client.get_comprehensive_health_data()
-                
-                if whoop_data.get("available"):
-                    # Calculate energy level
-                    energy_data = recommender.calculate_energy_level(whoop_data)
-                    
-                    recovery = whoop_data.get("recovery", {})
-                    sleep = whoop_data.get("sleep", {})
-                    strain = whoop_data.get("strain", {})
-                    workouts = whoop_data.get("workouts", [])
-                    
-                    # Recovery section
-                    message_parts.append("\n📊 **Твоё восстановление:**")
-                    if recovery:
-                        rec_score = recovery.get("score")
-                        hrv = recovery.get("hrv_rmssd")
-                        rhr = recovery.get("resting_heart_rate")
-                        
-                        if rec_score:
-                            emoji = "🟢" if rec_score >= 67 else "🟡" if rec_score >= 34 else "🔴"
-                            message_parts.append(f"{emoji} Recovery: **{rec_score}%**")
-                        if hrv:
-                            message_parts.append(f"💓 HRV: {hrv}ms")
-                        if rhr:
-                            message_parts.append(f"❤️ RHR: {rhr} bpm")
-                    
-                    # Sleep section
-                    if sleep:
-                        message_parts.append("\n😴 **Твой сон:**")
-                        total_sleep = sleep.get("total_sleep_hours")
-                        deep_sleep = sleep.get("deep_sleep_hours")
-                        rem_sleep = sleep.get("rem_sleep_hours")
-                        sleep_perf = sleep.get("performance_percentage")
-                        
-                        if total_sleep:
-                            message_parts.append(f"⏱ Всего: {total_sleep}ч")
-                        if deep_sleep:
-                            message_parts.append(f"🌊 Глубокий: {deep_sleep}ч")
-                        if rem_sleep:
-                            message_parts.append(f"💭 REM: {rem_sleep}ч")
-                        if sleep_perf:
-                            emoji = "✅" if sleep_perf >= 85 else "⚠️" if sleep_perf >= 70 else "❌"
-                            message_parts.append(f"{emoji} Качество: {sleep_perf}%")
-                    
-                    # Stress indicator
-                    stress = energy_data.get("stress_indicator")
-                    if stress is not None:
-                        message_parts.append("\n🧠 **Уровень стресса:**")
-                        if stress < 30:
-                            message_parts.append(f"🟢 Низкий ({stress}/100) - отлично!")
-                        elif stress < 60:
-                            message_parts.append(f"🟡 Средний ({stress}/100) - нормально")
-                        else:
-                            message_parts.append(f"🔴 Высокий ({stress}/100) - нужен отдых!")
-                    
-                    # Energy level and task recommendations
-                    message_parts.append("\n⚡ **Твоя энергия:**")
-                    energy_level = energy_data.get("energy_level")
-                    if energy_level == "high":
-                        message_parts.append("🟢 **ВЫСОКАЯ** - отличный день для сложных задач!")
-                    elif energy_level == "medium":
-                        message_parts.append("🟡 **СРЕДНЯЯ** - фокусируйся на рутине")
-                    else:
-                        message_parts.append("🔴 **НИЗКАЯ** - береги силы, делай простые задачи")
-                    
-                    # Task recommendations
-                    task_rec = recommender.recommend_task_difficulty(energy_data)
-                    message_parts.append("\n📋 **Рекомендации на сегодня:**")
-                    message_parts.append(f"• Максимум задач: **{task_rec['max_tasks']}**")
-                    message_parts.append(f"• Сложность: **{task_rec['recommended_difficulty']}**")
-                    message_parts.append(f"• Фокус: {task_rec['focus_duration_hours']}ч")
-                    message_parts.append(f"• Перерывы каждые {task_rec['break_frequency_minutes']}мин")
-                    
-                    message_parts.append(f"\n💡 {task_rec['advice']}")
-                    
-                    # Weekend boost
-                    weekend_factor = recommender.get_weekend_boost_factor()
-                    if weekend_factor > 1.0:
-                        message_parts.append("\n🎉 **Выходной!** Можешь сделать x1.5 больше задач!")
-                    
-                    # Sleep recommendation
-                    sleep_rec = recommender.recommend_sleep_time(whoop_data, target_wake_time="08:00")
-                    message_parts.append("\n🌙 **Когда лечь спать:**")
-                    message_parts.append(f"⏰ Рекомендуемое время: **{sleep_rec['recommended_bedtime']}**")
-                    message_parts.append(f"💤 Нужно сна: {sleep_rec['sleep_need_hours']}ч")
-                    if sleep_rec['sleep_debt_hours'] > 0:
-                        message_parts.append(f"⚠️ Долг сна: {sleep_rec['sleep_debt_hours']}ч")
-                    message_parts.append(f"\n{sleep_rec['advice']}")
-                    
-                    # Workouts summary
-                    if workouts:
-                        message_parts.append("\n🏃 **Вчерашние тренировки:**")
-                        for workout in workouts[:3]:  # Show max 3
-                            sport = workout.get("sport_name", "Unknown")
-                            w_strain = workout.get("strain")
-                            message_parts.append(f"• {sport}: Strain {w_strain:.1f}" if w_strain else f"• {sport}")
-                
-                else:
-                    message_parts.append("\n⚠️ Нет данных WHOOP за сегодня")
-            
-            else:
-                message_parts.append("\n⚠️ WHOOP не подключен")
-            
-            # Gratitude prompt
-            message_parts.append("\n\n🙏 **За что ты благодарен этим утром?**")
-            message_parts.append("_Просто ответь на это сообщение_")
-            
-            message = "\n".join(message_parts)
+            # Simple morning gratitude prompt
+            message = (
+                "🌅 **Доброе утро!**\n\n"
+                "🙏 **За что ты благодарен этим утром?**\n\n"
+                "_Просто ответь на это сообщение_"
+            )
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
@@ -278,7 +164,7 @@ class ReminderService:
             )
             
             gratitude_module.set_waiting_for_gratitude(self._chat_id, "morning")
-            logger.info("Утренний план с WHOOP анализом отправлен")
+            logger.info("Утреннее напоминание отправлено")
             
         except Exception as e:
             logger.error(f"Ошибка отправки утреннего плана: {e}", exc_info=True)
