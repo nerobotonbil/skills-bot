@@ -1,13 +1,18 @@
 import os
 import sqlite3
 from datetime import date, datetime
+from typing import List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes, BaseHandler
 from config.settings import DATA_DIR
+from modules.base import BaseModule
 
-class LearningProgressModule:
+class LearningProgressModule(BaseModule):
     def __init__(self):
-        self.name = "learning_progress"
+        super().__init__(
+            name="learning_progress",
+            description="Track daily learning progress with SQLite"
+        )
         self.db_path = DATA_DIR / "learning_progress.db"
         self._init_database()
         self.course_name = "Доп. курсы"  # Default course name
@@ -193,7 +198,7 @@ class LearningProgressModule:
             
             await query.edit_message_text(message)
     
-    def get_handlers(self):
+    def get_handlers(self) -> List[BaseHandler]:
         """Return list of handlers"""
         return [
             CommandHandler("today", self.today_command),
