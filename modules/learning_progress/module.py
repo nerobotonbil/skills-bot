@@ -131,21 +131,34 @@ class LearningProgressModule(BaseModule):
             current_state = int(parts[2])  # 0 or 1
             new_state = 1 - current_state
             
-            # Update keyboard
-            keyboard = query.message.reply_markup.inline_keyboard
-            for row in keyboard:
+            # Create new keyboard with updated buttons
+            old_keyboard = query.message.reply_markup.inline_keyboard
+            new_keyboard = []
+            
+            for row in old_keyboard:
+                new_row = []
                 for button in row:
                     if button.callback_data == data:
+                        # Create new button with updated state
                         if field == "main":
                             icon = "☑️" if new_state else "⬜️"
-                            button.text = f"{icon} 50 скиллов"
-                            button.callback_data = f"toggle_main_{new_state}"
+                            new_button = InlineKeyboardButton(
+                                f"{icon} 50 скиллов",
+                                callback_data=f"toggle_main_{new_state}"
+                            )
                         elif field == "additional":
                             icon = "☑️" if new_state else "⬜️"
-                            button.text = f"{icon} {self.course_name}"
-                            button.callback_data = f"toggle_additional_{new_state}"
+                            new_button = InlineKeyboardButton(
+                                f"{icon} {self.course_name}",
+                                callback_data=f"toggle_additional_{new_state}"
+                            )
+                        new_row.append(new_button)
+                    else:
+                        # Keep other buttons unchanged
+                        new_row.append(button)
+                new_keyboard.append(new_row)
             
-            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_keyboard))
         
         elif data == "save_progress":
             # Extract states from keyboard
