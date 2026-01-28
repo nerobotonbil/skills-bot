@@ -1,20 +1,21 @@
-import sqlite3
 import os
+import sqlite3
 from datetime import date, datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes
+from config.settings import DATA_DIR
 
 class LearningProgressModule:
     def __init__(self):
         self.name = "learning_progress"
-        self.db_path = os.getenv("SQLITE_DB_PATH", "/app/data/learning_progress.db")
+        self.db_path = DATA_DIR / "learning_progress.db"
         self._init_database()
         self.course_name = "Доп. курсы"  # Default course name
     
     def _init_database(self):
         """Initialize SQLite database"""
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS progress (
@@ -60,7 +61,7 @@ class LearningProgressModule:
     
     async def progress_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show progress history"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
         
         # Get last 10 entries
@@ -156,7 +157,7 @@ class LearningProgressModule:
             
             # Save to database
             today = date.today().isoformat()
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
             
             # Check if entry for today already exists
