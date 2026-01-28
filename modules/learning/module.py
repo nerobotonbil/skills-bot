@@ -97,7 +97,7 @@ class LearningModule(BaseModule):
     def get_handlers(self) -> List[BaseHandler]:
         """Returns command handlers"""
         return [
-            CommandHandler("today", self.today_command),
+            CommandHandler("tasks", self.tasks_command),
             CommandHandler("progress", self.progress_command),
             CommandHandler("skills", self.skills_command),
             CommandHandler("recommend", self.recommend_command),
@@ -377,7 +377,7 @@ class LearningModule(BaseModule):
         return tasks
     
     @owner_only
-    async def today_command(
+    async def tasks_command(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE

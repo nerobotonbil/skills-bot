@@ -31,14 +31,33 @@ class LearningProgressModule(BaseModule):
             description="Dual-track learning progress tracker"
         )
         self._db_id = LEARNING_PROGRESS_DATABASE_ID
+        self._current_course_name = "Доп. курсы"  # Default course name
         logger.info(f"Learning Progress module initialized with DB: {self._db_id}")
     
     def get_handlers(self) -> List[BaseHandler]:
         """Returns command handlers"""
         return [
             CommandHandler("today", self.today_command),
+            CommandHandler("set_course", self.set_course_command),
             CallbackQueryHandler(self.handle_progress_selection, pattern="^progress_"),
         ]
+    
+    @owner_only
+    async def set_course_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Command /set_course - set custom course name"""
+        if context.args:
+            course_name = " ".join(context.args)
+            self._current_course_name = course_name
+            message = f"✅ Установлен курс: {course_name}"
+        else:
+            self._current_course_name = "Доп. курсы"
+            message = "✅ Сброшено на: Доп. курсы"
+        
+        await update.message.reply_text(message)
     
     @owner_only
     async def today_command(
@@ -50,7 +69,7 @@ class LearningProgressModule(BaseModule):
         keyboard = [
             [
                 InlineKeyboardButton("✅ 50 скиллов", callback_data="progress_main"),
-                InlineKeyboardButton("✅ Доп. курсы", callback_data="progress_additional"),
+                InlineKeyboardButton(f"✅ {self._current_course_name}", callback_data="progress_additional"),
             ],
             [
                 InlineKeyboardButton("✅ Оба", callback_data="progress_both"),
@@ -84,7 +103,7 @@ class LearningProgressModule(BaseModule):
             message = "✅ Отметил: 50 скиллов"
         elif selection == "additional":
             additional_courses = True
-            message = "✅ Отметил: Доп. курсы"
+            message = f"✅ Отметил: {self._current_course_name}"
         elif selection == "both":
             main_skills = True
             additional_courses = True
@@ -92,8 +111,8 @@ class LearningProgressModule(BaseModule):
         else:  # none
             message = "📝 Записал: ничего не изучал сегодня"
         
-        # Save to Notion
-        saved = await self._save_progress(main_skills, additional_courses)
+        # Save to Notion with course name
+        saved = await self._save_progress(main_skills, additional_courses, self._current_course_name)
         
         if saved:
             message += "\n✅ Синхронизировано с Notion"
@@ -103,11 +122,11 @@ class LearningProgressModule(BaseModule):
             if stats:
                 message += f"\n\n📊 За последние 7 дней:\n"
                 message += f"• 50 скиллов: {stats['main_count']}/7\n"
-                message += f"• Доп. курсы: {stats['additional_count']}/7"
+                message += f"• {self._current_course_name}: {stats['additional_count']}/7"
                 
                 # Smart reminder if additional courses are neglected
                 if stats['additional_count'] == 0 and stats['main_count'] >= 3:
-                    message += "\n\n⚠️ Не забывай про дополнительные курсы!"
+                    message += f"\n\n⚠️ Не забывай про {self._current_course_name}!"
         else:
             message += "\n⚠️ Не удалось синхронизировать с Notion"
         
@@ -116,7 +135,8 @@ class LearningProgressModule(BaseModule):
     async def _save_progress(
         self,
         main_skills: bool,
-        additional_courses: bool
+        additional_courses: bool,
+        course_name: str = "Доп. курсы"
     ) -> bool:
         """Saves progress entry to Notion"""
         token = os.getenv("NOTION_API_TOKEN")
@@ -147,6 +167,9 @@ class LearningProgressModule(BaseModule):
                 },
                 "Additional Courses": {
                     "checkbox": additional_courses
+                },
+                "Course Name": {
+                    "rich_text": [{"text": {"content": course_name}}]
                 }
             }
         }
@@ -161,7 +184,7 @@ class LearningProgressModule(BaseModule):
                 )
                 
                 if response.status_code == 200:
-                    logger.info(f"Progress saved: main={main_skills}, additional={additional_courses}")
+                    logger.info(f"Progress saved: main={main_skills}, additional={additional_courses}, course={course_name}")
                     return True
                 else:
                     logger.error(f"Notion API error: {response.status_code} - {response.text}")
@@ -249,8 +272,8 @@ class LearningProgressModule(BaseModule):
                 "⚠️ Напоминание о балансе обучения\n\n"
                 f"За последние 7 дней:\n"
                 f"• 50 скиллов: {stats['main_count']} дней\n"
-                f"• Доп. курсы: {stats['additional_count']} дней\n\n"
-                "Не забывай про дополнительные курсы! "
+                f"• {self._current_course_name}: {stats['additional_count']} дней\n\n"
+                f"Не забывай про {self._current_course_name}! "
                 "Они помогут применить знания на практике.\n\n"
                 "Используй /today чтобы отметить прогресс."
             )
