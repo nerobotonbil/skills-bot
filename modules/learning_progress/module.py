@@ -1,5 +1,5 @@
 """
-Learning Progress tracking module with dual-track system (50 skills + additional courses)
+Learning Progress tracking module with interactive checklist buttons
 """
 import logging
 import os
@@ -22,13 +22,13 @@ logger = logging.getLogger(__name__)
 
 class LearningProgressModule(BaseModule):
     """
-    Learning progress tracking with two tracks: Main Skills (50 skills) and Additional Courses
+    Learning progress tracking with interactive checklist buttons
     """
     
     def __init__(self):
         super().__init__(
             name="learning_progress",
-            description="Dual-track learning progress tracker"
+            description="Interactive learning progress tracker with checklist"
         )
         self._db_id = LEARNING_PROGRESS_DATABASE_ID
         self._current_course_name = "Доп. курсы"  # Default course name
@@ -39,7 +39,8 @@ class LearningProgressModule(BaseModule):
         return [
             CommandHandler("today", self.today_command),
             CommandHandler("set_course", self.set_course_command),
-            CallbackQueryHandler(self.handle_progress_selection, pattern="^progress_"),
+            CallbackQueryHandler(self.handle_checklist_toggle, pattern="^lp_toggle_"),
+            CallbackQueryHandler(self.handle_save, pattern="^lp_save$"),
         ]
     
     @owner_only
@@ -65,54 +66,98 @@ class LearningProgressModule(BaseModule):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Command /today - mark today's learning progress"""
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ 50 скиллов", callback_data="progress_main"),
-                InlineKeyboardButton(f"✅ {self._current_course_name}", callback_data="progress_additional"),
-            ],
-            [
-                InlineKeyboardButton("✅ Оба", callback_data="progress_both"),
-                InlineKeyboardButton("❌ Ничего", callback_data="progress_none"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        """Command /today - show interactive checklist for learning progress"""
+        # Initialize state: nothing selected
+        keyboard = self._build_keyboard(main_selected=False, additional_selected=False)
         
         await update.message.reply_text(
-            "📚 Что сегодня изучил?",
-            reply_markup=reply_markup
+            "📚 Что сегодня изучил?\n\nВыбери нужные пункты:",
+            reply_markup=keyboard
         )
     
+    def _build_keyboard(self, main_selected: bool, additional_selected: bool) -> InlineKeyboardMarkup:
+        """Build keyboard with current selection state"""
+        main_icon = "☑️" if main_selected else "⬜️"
+        additional_icon = "☑️" if additional_selected else "⬜️"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"{main_icon} 50 скиллов", 
+                    callback_data="lp_toggle_main"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"{additional_icon} {self._current_course_name}", 
+                    callback_data="lp_toggle_additional"
+                ),
+            ],
+            [
+                InlineKeyboardButton("💾 Сохранить", callback_data="lp_save"),
+            ]
+        ]
+        
+        return InlineKeyboardMarkup(keyboard)
+    
     @owner_only
-    async def handle_progress_selection(
+    async def handle_checklist_toggle(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Handler for progress selection buttons"""
+        """Handle toggle button clicks"""
         query = update.callback_query
         await query.answer()
         
-        selection = query.data.replace("progress_", "")
+        # Parse current state from message text or callback data
+        # We'll store state in callback_data by encoding it
+        toggle_type = query.data.replace("lp_toggle_", "")
         
-        main_skills = False
-        additional_courses = False
+        # Get current state from keyboard buttons
+        current_keyboard = query.message.reply_markup.inline_keyboard
+        main_selected = "☑️" in current_keyboard[0][0].text
+        additional_selected = "☑️" in current_keyboard[1][0].text
         
-        if selection == "main":
-            main_skills = True
-            message = "✅ Отметил: 50 скиллов"
-        elif selection == "additional":
-            additional_courses = True
-            message = f"✅ Отметил: {self._current_course_name}"
-        elif selection == "both":
-            main_skills = True
-            additional_courses = True
-            message = "✅ Отметил: Оба трека"
-        else:  # none
+        # Toggle the clicked item
+        if toggle_type == "main":
+            main_selected = not main_selected
+        elif toggle_type == "additional":
+            additional_selected = not additional_selected
+        
+        # Update keyboard
+        new_keyboard = self._build_keyboard(main_selected, additional_selected)
+        
+        await query.edit_message_reply_markup(reply_markup=new_keyboard)
+    
+    @owner_only
+    async def handle_save(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Handle save button click"""
+        query = update.callback_query
+        await query.answer("Сохраняю...")
+        
+        # Get current state from keyboard
+        current_keyboard = query.message.reply_markup.inline_keyboard
+        main_selected = "☑️" in current_keyboard[0][0].text
+        additional_selected = "☑️" in current_keyboard[1][0].text
+        
+        # Save to Notion
+        saved = await self._save_progress(main_selected, additional_selected, self._current_course_name)
+        
+        # Build result message
+        if not main_selected and not additional_selected:
             message = "📝 Записал: ничего не изучал сегодня"
-        
-        # Save to Notion with course name
-        saved = await self._save_progress(main_skills, additional_courses, self._current_course_name)
+        else:
+            parts = []
+            if main_selected:
+                parts.append("50 скиллов")
+            if additional_selected:
+                parts.append(self._current_course_name)
+            message = f"✅ Отметил: {', '.join(parts)}"
         
         if saved:
             message += "\n✅ Синхронизировано с Notion"
@@ -130,6 +175,7 @@ class LearningProgressModule(BaseModule):
         else:
             message += "\n⚠️ Не удалось синхронизировать с Notion"
         
+        # Remove keyboard and show final message
         await query.edit_message_text(message)
     
     async def _save_progress(
