@@ -202,4 +202,5 @@ class LearningProgressModule:
         ]
 
 # Export module instance
-module = LearningProgressModule()
+learning_progress_module = LearningProgressModule()
+
