@@ -37,6 +37,7 @@ from modules.ideas.module import ideas_module
 from modules.productivity.module import productivity_module
 from modules.contacts.module import contacts_module
 from modules.apple_health.module import apple_health_module
+from modules.learning_progress.module import learning_progress_module
 from modules.reminders import reminder_service
 from modules.logging_handler import telegram_handler, get_recent_logs
 
@@ -93,7 +94,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 **📌 Главные команды:**
 
-/today - план на сегодня
+/today - отметить прогресс обучения
 /gratitude - записать благодарность
 
 **🔧 Дополнительно:**
@@ -120,7 +121,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     help_text = """📚 **Полный список команд**
 
 **🎯 Обучение:**
-/today - план на сегодня
+/today - отметить прогресс обучения
 /progress - прогресс по навыкам
 /skills - список 50 навыков
 
@@ -233,7 +234,7 @@ async def post_init(application: Application) -> None:
     # Устанавливаем команды бота (на русском)
     commands = [
         BotCommand("start", "Запустить бота"),
-        BotCommand("today", "Цель на сегодня"),
+        BotCommand("today", "Отметить прогресс обучения"),
         BotCommand("progress", "Прогресс по навыкам"),
         BotCommand("skills", "Все 50 навыков"),
         BotCommand("gratitude", "Записать благодарность"),
@@ -297,6 +298,7 @@ def main() -> None:
     module_manager.register_module(ideas_module)
     module_manager.register_module(productivity_module)
     module_manager.register_module(contacts_module)
+    module_manager.register_module(learning_progress_module)
     module_manager.register_module(ai_assistant_module)  # ПОСЛЕДНИМ!
     
     logger.info(f"Зарегистрировано {len(module_manager)} модулей")

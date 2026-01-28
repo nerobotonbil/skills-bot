@@ -20,6 +20,9 @@ NOTION_SKILLS_DATA_SOURCE = os.getenv("NOTION_SKILLS_DATA_SOURCE", "collection:/
 # Notion Gratitude Journal
 NOTION_GRATITUDE_DATABASE_ID = os.getenv("NOTION_GRATITUDE_DATABASE_ID", "2e28db7c93678010a214e47603e2d27e")
 
+# Notion Learning Progress
+LEARNING_PROGRESS_DATABASE_ID = os.getenv("LEARNING_PROGRESS_DATABASE_ID", "294472f74bbf4ab4b9227de45ddc7831")
+
 # Maximum values for progress bars
 MAX_VALUES = {
     "Lectures": 10,        # Lectures (theory)

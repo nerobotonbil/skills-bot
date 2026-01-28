@@ -11,6 +11,7 @@ from core.scheduler import scheduler
 from modules.notion.module import notion_module
 from modules.learning.module import learning_module
 from modules.gratitude.module import gratitude_module
+from modules.learning_progress.module import learning_progress_module
 from config.settings import (
     MORNING_REMINDER_TIME, 
     EVENING_REMINDER_TIME,
@@ -183,7 +184,7 @@ class ReminderService:
     async def send_evening_task(self) -> None:
         """
         Отправляет вечернюю задачу (20:00).
-        Один случайный навык для изучения + WHOOP рекомендации.
+        Один случайный навык для изучения + напоминание отметить прогресс.
         """
         if not self._app or not self._chat_id:
             logger.warning("Не могу отправить вечернюю задачу: app или chat_id не установлены")
@@ -193,21 +194,19 @@ class ReminderService:
             skills = await notion_module.refresh_skills_cache()
             base_message = learning_module.generate_single_task_message(skills)
             
-            # Enhance with WHOOP recommendation if available
-            try:
-                from modules.whoop_integration import get_evening_task_with_whoop
-                message = get_evening_task_with_whoop(base_message)
-            except Exception as whoop_error:
-                logger.warning(f"WHOOP integration failed: {whoop_error}")
-                message = base_message
+            # Add learning progress reminder
+            base_message += "\n\n📚 Не забудь отметить прогресс за день!\nИспользуй /today когда будешь готов."
             
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
-                text=message,
+                text=base_message,
                 parse_mode='Markdown'
             )
             
-            logger.info("Вечерняя задача отправлена (1 навык + WHOOP)")
+            logger.info("Вечерняя задача отправлена (1 навык + learning progress reminder)")
+            
+            # Check if need to send balance reminder for additional courses
+            await learning_progress_module.check_and_send_reminder(self._app, self._chat_id)
             
         except Exception as e:
             logger.error(f"Ошибка отправки вечерней задачи: {e}")
