@@ -501,8 +501,8 @@ class GratitudeModule(BaseModule):
     "categories": {{
         "business": {{
             "count": 0,  // Количество записей
-            "examples": ["пример1", "пример2"],  // 2-3 ключевых момента
-            "insight": "Главный инсайт по этой области (1-2 предложения)"
+            "examples": ["пример1", "пример2"],  // 2-3 ключевых момента БЕЗ ДАТ
+            "insight": "Краткий инсайт (1 предложение, максимум 15 слов)"
         }},
         "knowledge": {{
             "count": 0,
@@ -526,14 +526,22 @@ class GratitudeModule(BaseModule):
         }}
     }},
     "key_insights": [
-        "Инсайт 1 - самое важное открытие недели",
-        "Инсайт 2 - второе по важности",
-        "Инсайт 3 - третье"
+        "Инсайт 1 - самое важное открытие (1 предложение)",
+        "Инсайт 2 - второе по важности (1 предложение)",
+        "Инсайт 3 - третье (1 предложение)"
     ],
     "recommendations": [
-        "Конкретная рекомендация 1",
-        "Конкретная рекомендация 2",
-        "Конкретная рекомендация 3"
+        "Краткая рекомендация 1 (максимум 10 слов)",
+        "Краткая рекомендация 2 (максимум 10 слов)",
+        "Краткая рекомендация 3 (максимум 10 слов)"
+    ],
+    "strengths": [
+        "Сильная сторона 1 - что хорошо получается",
+        "Сильная сторона 2"
+    ],
+    "growth_areas": [
+        "Зона роста 1 - что можно улучшить",
+        "Зона роста 2"
     ]
 }}
 
@@ -544,7 +552,14 @@ class GratitudeModule(BaseModule):
 - health: спорт, питание, сон, энергия, самочувствие
 - personal: хобби, развлечения, отдых, эмоции, личное время
 
-Пиши на русском, будь конкретным и персонализированным. Инсайты должны быть глубокими и действительно полезными."""
+ВАЖНО:
+- Примеры БЕЗ ДАТ - только суть события
+- Инсайты по категориям - МАКСИМУМ 15 слов, 1 предложение
+- Рекомендации - МАКСИМУМ 10 слов каждая
+- Сильные стороны - 2 категории где больше всего записей
+- Зоны роста - 2 категории где меньше всего записей
+
+Пиши на русском, будь конкретным и лаконичным."""
 
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",
@@ -577,7 +592,9 @@ class GratitudeModule(BaseModule):
                     "personal": {"count": 0, "examples": [], "insight": ""}
                 },
                 "key_insights": ["Продолжай записывать благодарности каждый день"],
-                "recommendations": ["Продолжай в том же духе!"]
+                "recommendations": ["Продолжай в том же духе!"],
+                "strengths": [],
+                "growth_areas": []
             }
     
     async def _format_weekly_recap_russian(self, entries: List[Dict], analysis: Dict, metrics: Dict[str, int] = None) -> str:
@@ -639,12 +656,12 @@ class GratitudeModule(BaseModule):
                 name = category_names.get(cat_key, cat_key)
                 count = cat_data['count']
                 
-                message += f"{icon} **{name}** ({count} записей)\n"
+                message += f"{icon} {name} ({count} записей)\n"
                 
-                # Add examples
+                # Add examples (max 2)
                 examples = cat_data.get('examples', [])
                 if examples:
-                    for example in examples[:3]:  # Max 3 examples
+                    for example in examples[:2]:  # Max 2 examples
                         message += f"  • {example}\n"
                 
                 # Add insight
@@ -654,10 +671,29 @@ class GratitudeModule(BaseModule):
                 
                 message += "\n"
         
+        # Strengths and growth areas
+        strengths = analysis.get('strengths', [])
+        growth_areas = analysis.get('growth_areas', [])
+        
+        if strengths or growth_areas:
+            message += "📊 Анализ:\n\n"
+            
+            if strengths:
+                message += "✅ Сильные стороны:\n"
+                for strength in strengths[:2]:  # Max 2
+                    message += f"  • {strength}\n"
+                message += "\n"
+            
+            if growth_areas:
+                message += "⚠️ Зоны роста:\n"
+                for area in growth_areas[:2]:  # Max 2
+                    message += f"  • {area}\n"
+                message += "\n"
+        
         # Key insights section
         key_insights = analysis.get('key_insights', [])
         if key_insights:
-            message += "💡 **Главные инсайты недели:**\n"
+            message += "💡 Главные инсайты недели:\n"
             for i, insight in enumerate(key_insights[:3], 1):  # Max 3 insights
                 message += f"{i}. {insight}\n"
             message += "\n"
@@ -665,7 +701,7 @@ class GratitudeModule(BaseModule):
         # Recommendations section
         recommendations = analysis.get('recommendations', [])
         if recommendations:
-            message += "🚀 **Рекомендации:**\n"
+            message += "🚀 Рекомендации:\n"
             for rec in recommendations[:3]:  # Max 3 recommendations
                 message += f"  • {rec}\n"
             message += "\n"
