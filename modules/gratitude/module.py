@@ -481,7 +481,7 @@ class GratitudeModule(BaseModule):
             return []
     
     async def _analyze_week_patterns_russian(self, entries: List[Dict]) -> Dict:
-        """Uses AI to analyze weekly gratitude patterns in Russian"""
+        """Uses AI to analyze weekly gratitude patterns with life area categorization"""
         try:
             client = self._get_openai_client()
             
@@ -491,30 +491,69 @@ class GratitudeModule(BaseModule):
                 for e in entries
             ])
             
-            prompt = f"""Проанализируй эти записи благодарности за неделю и дай инсайты.
+            prompt = f"""Проанализируй эти записи благодарности за неделю и категоризируй их по областям жизни.
 
 ЗАПИСИ:
 {entries_text}
 
 Ответь в JSON формате:
 {{
-    "key_themes": ["тема1", "тема2", "тема3"],  // Топ-3 темы недели
-    "people": ["человек1", "человек2"],  // Ключевые люди, упомянутые в записях
-    "patterns": "Краткое описание паттернов (за что чаще благодарил, что приносит радость)",
-    "insights": "Главный инсайт недели - что это говорит о твоих приоритетах и ценностях (2-3 предложения)",
-    "recommendations": "Конкретные рекомендации куда двигаться дальше, на что обратить внимание (2-3 предложения)"
+    "categories": {{
+        "business": {{
+            "count": 0,  // Количество записей
+            "examples": ["пример1", "пример2"],  // 2-3 ключевых момента
+            "insight": "Главный инсайт по этой области (1-2 предложения)"
+        }},
+        "knowledge": {{
+            "count": 0,
+            "examples": [],
+            "insight": ""
+        }},
+        "relationships": {{
+            "count": 0,
+            "examples": [],
+            "insight": ""
+        }},
+        "health": {{
+            "count": 0,
+            "examples": [],
+            "insight": ""
+        }},
+        "personal": {{
+            "count": 0,
+            "examples": [],
+            "insight": ""
+        }}
+    }},
+    "key_insights": [
+        "Инсайт 1 - самое важное открытие недели",
+        "Инсайт 2 - второе по важности",
+        "Инсайт 3 - третье"
+    ],
+    "recommendations": [
+        "Конкретная рекомендация 1",
+        "Конкретная рекомендация 2",
+        "Конкретная рекомендация 3"
+    ]
 }}
 
-Пиши на русском, будь конкретным и персонализированным. Фокусируйся на том, что действительно важно для человека."""
+КАТЕГОРИИ:
+- business: работа, проекты, достижения, встречи, карьера, бизнес
+- knowledge: обучение, инсайты, книги, курсы, навыки, развитие
+- relationships: семья, друзья, партнёр, общение, люди
+- health: спорт, питание, сон, энергия, самочувствие
+- personal: хобби, развлечения, отдых, эмоции, личное время
+
+Пиши на русском, будь конкретным и персонализированным. Инсайты должны быть глубокими и действительно полезными."""
 
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",
                 messages=[
-                    {"role": "system", "content": "Ты мудрый коуч, который анализирует дневники благодарности и даёт глубокие инсайты на русском языке."},
+                    {"role": "system", "content": "Ты мудрый коуч, который анализирует дневники благодарности и даёт глубокие инсайты на русском языке. Ты умеешь видеть паттерны и давать конкретные рекомендации."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1500
             )
             
             result_text = response.choices[0].message.content.strip()
@@ -530,63 +569,108 @@ class GratitudeModule(BaseModule):
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")
             return {
-                "key_themes": ["благодарность", "повседневная жизнь"],
-                "people": [],
-                "patterns": "Регулярная практика благодарности",
-                "insights": "Продолжай в том же духе!",
-                "recommendations": "Продолжай записывать благодарности каждый день."
+                "categories": {
+                    "business": {"count": 0, "examples": [], "insight": ""},
+                    "knowledge": {"count": 0, "examples": [], "insight": ""},
+                    "relationships": {"count": 0, "examples": [], "insight": ""},
+                    "health": {"count": 0, "examples": [], "insight": ""},
+                    "personal": {"count": 0, "examples": [], "insight": ""}
+                },
+                "key_insights": ["Продолжай записывать благодарности каждый день"],
+                "recommendations": ["Продолжай в том же духе!"]
             }
     
     async def _format_weekly_recap_russian(self, entries: List[Dict], analysis: Dict, metrics: Dict[str, int] = None) -> str:
-        """Formats weekly recap message in Russian"""
-        # Count entries
-        total = len(entries)
+        """Formats weekly recap message in Russian with categorized structure"""
+        from datetime import datetime, date, timedelta
         
-        # Group by day of week
-        from datetime import datetime
+        # Calculate date range
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+        
+        # Count days with entries
         days_count = {}
         for entry in entries:
             if entry.get('date'):
                 day_name = datetime.fromisoformat(entry['date']).strftime('%A')
                 days_count[day_name] = days_count.get(day_name, 0) + 1
         
-        # Start with header and activity metrics (clean style, no Markdown bold)
-        message = "📊 Недельный рекап\n\n"
-        message += "🎉 Что сделал за неделю:\n"
+        # Start with header
+        message = f"📊 Недельный рекап ({week_ago.strftime('%d.%m')} - {today.strftime('%d.%m')})\n\n"
         
-        # Add metrics if available
+        # Activity metrics
+        message += "📈 Активность:\n"
         if metrics:
-            if metrics.get('contacts', 0) > 0:
-                contacts_word = "человек" if metrics['contacts'] == 1 else ("человека" if metrics['contacts'] < 5 else "человек")
-                message += f"\t•\tНовые знакомства: {metrics['contacts']} {contacts_word}\n"
-            if metrics.get('ideas', 0) > 0:
-                message += f"\t•\tЗаписал идей: {metrics['ideas']}\n"
+            activity_items = []
             if metrics.get('gratitudes', 0) > 0:
-                message += f"\t•\tЗаписей благодарности: {metrics['gratitudes']}\n"
-            message += f"\t•\tДней с записями: {len(days_count)} из 7\n"
+                activity_items.append(f"Записей: {metrics['gratitudes']}")
+            if metrics.get('contacts', 0) > 0:
+                activity_items.append(f"Знакомств: {metrics['contacts']}")
+            if metrics.get('ideas', 0) > 0:
+                activity_items.append(f"Идей: {metrics['ideas']}")
+            message += f"  • {' | '.join(activity_items)}\n"
         else:
-            message += f"\t•\tВсего записей: {total}\n"
-            message += f"\t•\tДней с записями: {len(days_count)} из 7\n"
+            message += f"  • Записей: {len(entries)}\n"
         
-        message += "\n🎯 Ключевые темы:\n"
-        for theme in analysis.get('key_themes', []):
-            message += f"\t•\t{theme}\n"
+        message += f"  • Дней с записями: {len(days_count)} из 7\n\n"
         
-        if analysis.get('people'):
-            message += f"\n👥 Важные люди:\n"
-            for person in analysis['people']:
-                message += f"\t•\t{person}\n"
+        # Categories section
+        categories = analysis.get('categories', {})
+        category_icons = {
+            'business': '🏢',
+            'knowledge': '💡',
+            'relationships': '❤️',
+            'health': '💪',
+            'personal': '🎯'
+        }
+        category_names = {
+            'business': 'Бизнес',
+            'knowledge': 'Знания',
+            'relationships': 'Отношения',
+            'health': 'Здоровье',
+            'personal': 'Личное'
+        }
         
-        message += f"\n🔍 Паттерны:\n"
-        message += f"{analysis.get('patterns', 'Нет данных')}\n"
+        message += "🎯 По областям:\n\n"
         
-        message += f"\n💡 Инсайты:\n"
-        message += f"{analysis.get('insights', 'Нет данных')}\n"
+        for cat_key, cat_data in categories.items():
+            if cat_data.get('count', 0) > 0:
+                icon = category_icons.get(cat_key, '🔸')
+                name = category_names.get(cat_key, cat_key)
+                count = cat_data['count']
+                
+                message += f"{icon} **{name}** ({count} записей)\n"
+                
+                # Add examples
+                examples = cat_data.get('examples', [])
+                if examples:
+                    for example in examples[:3]:  # Max 3 examples
+                        message += f"  • {example}\n"
+                
+                # Add insight
+                insight = cat_data.get('insight', '')
+                if insight:
+                    message += f"  → {insight}\n"
+                
+                message += "\n"
         
-        message += f"\n🚀 Рекомендации:\n"
-        message += f"{analysis.get('recommendations', 'Продолжай записывать благодарности!')}\n"
+        # Key insights section
+        key_insights = analysis.get('key_insights', [])
+        if key_insights:
+            message += "💡 **Главные инсайты недели:**\n"
+            for i, insight in enumerate(key_insights[:3], 1):  # Max 3 insights
+                message += f"{i}. {insight}\n"
+            message += "\n"
         
-        message += "\nИспользуй /gratitude чтобы продолжить. 🙏"
+        # Recommendations section
+        recommendations = analysis.get('recommendations', [])
+        if recommendations:
+            message += "🚀 **Рекомендации:**\n"
+            for rec in recommendations[:3]:  # Max 3 recommendations
+                message += f"  • {rec}\n"
+            message += "\n"
+        
+        message += "Используй /gratitude чтобы продолжить 🙏"
         
         return message
     
