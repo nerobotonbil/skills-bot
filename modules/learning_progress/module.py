@@ -211,6 +211,35 @@ class LearningProgressModule(BaseModule):
             
             await query.edit_message_text(message)
     
+    async def check_and_send_reminder(self, app, chat_id: int):
+        """Check balance between main skills and additional courses, send reminder if needed"""
+        try:
+            today = date.today().isoformat()
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            
+            # Get today's progress
+            cursor.execute(
+                "SELECT main_skills, additional_courses FROM progress WHERE date = ?",
+                (today,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                main_skills, additional_courses = result
+                
+                # Check if there's imbalance (main skills done but not additional courses)
+                if main_skills > 0 and additional_courses == 0:
+                    await app.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"⚖️ Не забудь про баланс!\n\nТы отметил основные навыки, но не отметил {self.course_name}.\nИспользуй /today чтобы отметить.",
+                        parse_mode='Markdown'
+                    )
+        except Exception as e:
+            # Silently fail - this is just a reminder
+            pass
+    
     def get_handlers(self) -> List[BaseHandler]:
         """Return list of handlers"""
         return [
